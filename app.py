@@ -116,7 +116,11 @@ st.markdown("""
         border-radius: 10px;
         padding: 4px 2px;
         text-align: center;
-        min-height: 60px;
+        height: 75px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
     }
     .cal-day-num {
         font-size: 0.75rem;
@@ -124,23 +128,26 @@ st.markdown("""
         font-weight: bold;
     }
     .cal-milk-val {
-        font-size: 0.65rem;
+        font-size: 0.6rem;
         font-weight: bold;
         color: #FF5A79;
         margin-top: 1px;
     }
-    /* ミニ棒グラフ用 */
+    
+    /* 縦棒グラフ用コンテナとバー */
     .cal-bar-container {
         background-color: #FFEBF0;
         border-radius: 4px;
-        height: 5px;
-        width: 85%;
-        margin: 2px auto 0 auto;
+        height: 24px;
+        width: 12px;
+        margin: 2px auto 2px auto;
+        display: flex;
+        align-items: flex-end;
         overflow: hidden;
     }
     .cal-bar-fill {
-        background: linear-gradient(90deg, #FF8A9E 0%, #FF5A79 100%);
-        height: 100%;
+        background: linear-gradient(0deg, #FF8A9E 0%, #FF5A79 100%);
+        width: 100%;
         border-radius: 4px;
     }
 
@@ -354,7 +361,7 @@ else:
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# 5. カレンダー表示（HTML崩れ修正版）
+# 5. カレンダー表示（縦棒グラフ対応版）
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📅 月間ミルクカレンダー</div>', unsafe_allow_html=True)
@@ -396,9 +403,9 @@ for week in cal:
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
 
             if milk_val > 0:
-                inner_html = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}ml</div><div class='cal-bar-container'><div class='cal-bar-fill' style='width: {bar_percent}%;'></div></div>"
+                inner_html = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}ml</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
             else:
-                inner_html = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.65rem; color:#DDD; margin-top:8px;'>-</div>"
+                inner_html = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.6rem; color:#DDD;'>-</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
 
             cols[i].markdown(f"<div class='cal-day-box' style='{bg_style}'>{inner_html}</div>", unsafe_allow_html=True)
 
