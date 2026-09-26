@@ -13,17 +13,17 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# カスタムCSS (iPhone・モバイル最適化)
+# カスタムCSS (iPhone・モバイル完全対応カレンダー)
 # --------------------------------------------------
 st.markdown("""
 <style>
-    /* 全体背景：ほんのり桜色のやさしい背景 */
+    /* 全体背景 */
     .main {
         background-color: #FFF8F9;
         font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
         color: #554848;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
+        padding-left: 0.3rem !important;
+        padding-right: 0.3rem !important;
     }
 
     /* ヘッダー */
@@ -34,7 +34,7 @@ st.markdown("""
     }
     .luna-title {
         color: #FF5A79;
-        font-size: 1.6rem;
+        font-size: 1.5rem;
         font-weight: bold;
         letter-spacing: 0.5px;
     }
@@ -48,7 +48,7 @@ st.markdown("""
     .luna-card {
         background-color: #FFFFFF;
         border-radius: 20px;
-        padding: 16px;
+        padding: 14px 10px;
         margin-bottom: 16px;
         box-shadow: 0 4px 14px rgba(255, 138, 158, 0.08);
         border: 1px solid #FFEBEF;
@@ -58,14 +58,14 @@ st.markdown("""
     .luna-card-mint {
         background-color: #F2FAF7;
         border-radius: 20px;
-        padding: 16px;
+        padding: 14px 10px;
         margin-bottom: 16px;
         border: 1px solid #D5F0E6;
     }
 
     /* サブヘッダー */
     .luna-header {
-        font-size: 1.05rem;
+        font-size: 1.0rem;
         font-weight: bold;
         color: #FF5A79;
         margin-bottom: 12px;
@@ -76,12 +76,12 @@ st.markdown("""
 
     /* メトリクス表示 */
     .luna-metric-val {
-        font-size: 2.0rem;
+        font-size: 1.8rem;
         font-weight: bold;
         color: #FF5A79;
     }
     .luna-metric-lbl {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         color: #8C7B7B;
     }
 
@@ -90,11 +90,11 @@ st.markdown("""
         background-color: #FFF5F7;
         border-left: 5px solid #FF5A79;
         border-radius: 12px;
-        padding: 10px 14px;
+        padding: 10px 12px;
         margin-bottom: 10px;
     }
     .timeline-time {
-        font-size: 1.0rem;
+        font-size: 0.95rem;
         font-weight: bold;
         color: #FF5A79;
     }
@@ -103,44 +103,72 @@ st.markdown("""
         background-color: #FFFFFF;
         border: 1px solid #FFD2DC;
         border-radius: 12px;
-        padding: 2px 8px;
-        font-size: 0.8rem;
-        margin-right: 6px;
+        padding: 2px 6px;
+        font-size: 0.75rem;
+        margin-right: 4px;
         color: #554848;
     }
 
-    /* カレンダーセル用デザイン */
-    .cal-day-box {
+    /* ----------------------------------------------
+       スマホ用 7列固定グリッドカレンダー（折り返し防止）
+       ---------------------------------------------- */
+    .cal-grid-container {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 3px;
+        width: 100%;
+        margin-top: 8px;
+    }
+    
+    .cal-header-cell {
+        text-align: center;
+        font-weight: bold;
+        font-size: 0.75rem;
+        padding: 4px 0;
+    }
+
+    .cal-day-cell {
         background-color: #FFFFFF;
         border: 1px solid #FFE1E8;
-        border-radius: 10px;
-        padding: 4px 2px;
+        border-radius: 8px;
+        padding: 3px 1px;
         text-align: center;
-        height: 75px;
+        min-height: 68px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         align-items: center;
+        box-sizing: border-box;
     }
+
+    .cal-day-cell-empty {
+        background-color: #FAF8F8;
+        border: 1px solid #F2EDED;
+        border-radius: 8px;
+        min-height: 68px;
+    }
+
     .cal-day-num {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         color: #8C7B7B;
         font-weight: bold;
+        line-height: 1.0;
     }
     .cal-milk-val {
-        font-size: 0.6rem;
+        font-size: 0.55rem;
         font-weight: bold;
         color: #FF5A79;
         margin-top: 1px;
+        line-height: 1.0;
     }
     
     /* 縦棒グラフ用コンテナとバー */
     .cal-bar-container {
         background-color: #FFEBF0;
-        border-radius: 4px;
-        height: 24px;
-        width: 12px;
-        margin: 2px auto 2px auto;
+        border-radius: 3px;
+        height: 22px;
+        width: 10px;
+        margin: 2px auto 1px auto;
         display: flex;
         align-items: flex-end;
         overflow: hidden;
@@ -148,7 +176,7 @@ st.markdown("""
     .cal-bar-fill {
         background: linear-gradient(0deg, #FF8A9E 0%, #FF5A79 100%);
         width: 100%;
-        border-radius: 4px;
+        border-radius: 3px;
     }
 
     /* ボタン */
@@ -158,10 +186,9 @@ st.markdown("""
         color: white !important;
         border: none !important;
         font-weight: bold !important;
-        font-size: 0.95rem !important;
-        padding: 6px 14px !important;
+        font-size: 0.9rem !important;
+        padding: 6px 10px !important;
         box-shadow: 0 4px 12px rgba(255, 90, 121, 0.2) !important;
-        transition: all 0.2s ease !important;
         width: 100%;
     }
 
@@ -201,7 +228,7 @@ def save_data(df):
 df = load_data()
 
 # --------------------------------------------------
-# 3. 入力エリア (起動・更新時は常に本日の日付に固定)
+# 3. 入力エリア
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
@@ -209,7 +236,6 @@ st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>'
 today_date = datetime.date.today()
 selected_date = st.date_input("日付を選択", value=today_date, format="YYYY/MM/DD")
 
-# 日付表記（例：9/26(土)）の作成
 weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
 wd_str = weekdays_jp[selected_date.weekday()]
 formatted_short_date = f"{selected_date.month}/{selected_date.day}({wd_str})"
@@ -263,7 +289,7 @@ if not day_data.empty:
         st.markdown(f"""
         <div class="luna-card">
             <div class="luna-header">🍼 ミルク合計</div>
-            <div class="luna-metric-val">{total_milk} <span style="font-size:0.9rem; color:#8C7B7B;">ml</span></div>
+            <div class="luna-metric-val">{total_milk} <span style="font-size:0.8rem; color:#8C7B7B;">ml</span></div>
             <div class="luna-metric-lbl">{date_display}</div>
         </div>
         """, unsafe_allow_html=True)
@@ -272,14 +298,14 @@ if not day_data.empty:
         st.markdown(f"""
         <div class="luna-card-mint">
             <div class="luna-header" style="color: #2E8B75;">💩 うんち回数</div>
-            <div class="luna-metric-val" style="color: #2E8B75;">{poop_count} <span style="font-size:0.9rem; color:#5C9E8E;">回</span></div>
+            <div class="luna-metric-val" style="color: #2E8B75;">{poop_count} <span style="font-size:0.8rem; color:#5C9E8E;">回</span></div>
             <div class="luna-metric-lbl" style="color: #5C9E8E;">{date_display}</div>
         </div>
         """, unsafe_allow_html=True)
 
     # 1日の時間別グラフ
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ({formatted_short_date})</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ', unsafe_allow_html=True)
 
     full_hours = pd.DataFrame({"hour": list(range(24))})
     hourly_summary = day_data.groupby("hour")["milk_ml"].sum().reset_index()
@@ -366,7 +392,7 @@ else:
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# 5. カレンダー表示（💩マーク追加版）
+# 5. CSS Grid式 7列固定スマホ対応カレンダー
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 
@@ -380,7 +406,6 @@ if not df.empty:
     monthly_df = df[(df["date_dt"].dt.year == year) & (df["date_dt"].dt.month == month)]
     daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
     
-    # うんちの記録がある日付を特定（「なし」以外の記録がある日）
     poop_df = monthly_df[monthly_df["poop_size"] != "なし"]
     poop_dates = set(poop_df["date"].unique())
 else:
@@ -392,18 +417,19 @@ max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.val
 cal = calendar.monthcalendar(year, month)
 weekdays = ["月", "火", "水", "木", "金", "土", "日"]
 
-# 曜日ヘッダー
-cols = st.columns(7)
-for i, wd in enumerate(weekdays):
-    color = "#FF5A79" if wd in ["土", "日"] else "#554848"
-    cols[i].markdown(f"<div style='text-align:center; font-weight:bold; font-size:0.8rem; color:{color};'>{wd}</div>", unsafe_allow_html=True)
+# カレンダーのHTMLを一括で構築（7列固定グリッド）
+cal_html = '<div class="cal-grid-container">'
 
-# カレンダーマス出力
+# 曜日ヘッダー
+for wd in weekdays:
+    color = "#FF5A79" if wd in ["土", "日"] else "#554848"
+    cal_html += f'<div class="cal-header-cell" style="color:{color};">{wd}</div>'
+
+# 日付セル
 for week in cal:
-    cols = st.columns(7)
-    for i, day in enumerate(week):
+    for day in week:
         if day == 0:
-            cols[i].markdown("<div class='cal-day-box' style='background-color:#FAF8F8; border:1px solid #F0EAEA;'></div>", unsafe_allow_html=True)
+            cal_html += '<div class="cal-day-cell-empty"></div>'
         else:
             d_str = f"{year}-{month:02d}-{day:02d}"
             milk_val = daily_milk.get(d_str, 0)
@@ -413,17 +439,18 @@ for week in cal:
             is_today = (d_str == today_date.strftime("%Y-%m-%d"))
 
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
-
-            # うんちマークの有無に応じた表記設定
             poop_icon = "💩" if has_poop else ""
 
             if milk_val > 0:
-                inner_html = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}ml {poop_icon}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}m {poop_icon}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
             elif has_poop:
-                inner_html = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.65rem;'>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.6rem;'>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
             else:
-                inner_html = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.6rem; color:#DDD;'>-</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
 
-            cols[i].markdown(f"<div class='cal-day-box' style='{bg_style}'>{inner_html}</div>", unsafe_allow_html=True)
+            cal_html += f'<div class="cal-day-cell" style="{bg_style}">{inner_content}</div>'
 
+cal_html += '</div>'
+
+st.markdown(cal_html, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
