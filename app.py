@@ -173,7 +173,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ヘッダー (「芳怜ちゃん育児記録」に変更)
+# ヘッダー
 st.markdown("""
 <div class="luna-title-container">
     <div class="luna-title">🌸 芳怜ちゃん育児記録</div>
@@ -209,7 +209,7 @@ st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>'
 today_date = datetime.date.today()
 selected_date = st.date_input("日付を選択", value=today_date, format="YYYY/MM/DD")
 
-# 日付表記（例：9/26(土) や 2026年9月26日）の作成
+# 日付表記（例：9/26(土)）の作成
 weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
 wd_str = weekdays_jp[selected_date.weekday()]
 formatted_short_date = f"{selected_date.month}/{selected_date.day}({wd_str})"
@@ -220,7 +220,6 @@ with st.form("record_form", clear_on_submit=False):
     col1, col2 = st.columns(2)
 
     with col1:
-        # 「時台」→「時」に変更
         hour = st.selectbox("時間帯", options=list(range(24)), format_func=lambda x: f"{x}時")
         minute = st.selectbox("分", options=list(range(0, 60, 5)), format_func=lambda x: f"{x:02d}分")
         time_str = f"{hour:02d}:{minute:02d}"
@@ -278,9 +277,9 @@ if not day_data.empty:
         </div>
         """, unsafe_allow_html=True)
 
-    # 1日の時間別グラフ (例：きょうの時間別授乳グラフ (9/26(土)))
+    # 1日の時間別グラフ
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ', unsafe_allow_html=True)
+    st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ({formatted_short_date})</div>', unsafe_allow_html=True)
 
     full_hours = pd.DataFrame({"hour": list(range(24))})
     hourly_summary = day_data.groupby("hour")["milk_ml"].sum().reset_index()
@@ -367,22 +366,26 @@ else:
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# 5. カレンダー表示 (例：📅 9月ミルクカレンダー)
+# 5. カレンダー表示（💩マーク追加版）
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 
 year = selected_date.year
 month = selected_date.month
 
-# 具体的な月（例：9月）を入れたタイトルに変更
 st.markdown(f'<div class="luna-header">📅 {month}月ミルクカレンダー</div>', unsafe_allow_html=True)
 
 if not df.empty:
     df["date_dt"] = pd.to_datetime(df["date"])
     monthly_df = df[(df["date_dt"].dt.year == year) & (df["date_dt"].dt.month == month)]
     daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
+    
+    # うんちの記録がある日付を特定（「なし」以外の記録がある日）
+    poop_df = monthly_df[monthly_df["poop_size"] != "なし"]
+    poop_dates = set(poop_df["date"].unique())
 else:
     daily_milk = {}
+    poop_dates = set()
 
 max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.values()) > 0 else 800
 
@@ -404,14 +407,20 @@ for week in cal:
         else:
             d_str = f"{year}-{month:02d}-{day:02d}"
             milk_val = daily_milk.get(d_str, 0)
+            has_poop = d_str in poop_dates
 
             bar_percent = min(100, int((milk_val / max_monthly_milk) * 100)) if milk_val > 0 else 0
             is_today = (d_str == today_date.strftime("%Y-%m-%d"))
 
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
 
+            # うんちマークの有無に応じた表記設定
+            poop_icon = "💩" if has_poop else ""
+
             if milk_val > 0:
-                inner_html = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}ml</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+                inner_html = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}ml {poop_icon}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+            elif has_poop:
+                inner_html = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.65rem;'>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
             else:
                 inner_html = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.6rem; color:#DDD;'>-</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
 
