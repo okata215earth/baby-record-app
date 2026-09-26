@@ -7,13 +7,13 @@ import streamlit as st
 
 # 1. ページ基本設定
 st.set_page_config(
-    page_title="ルナルナベビー風 - 赤ちゃん記録",
+    page_title="芳怜ちゃん育児記録",
     page_icon="🌸",
     layout="centered"
 )
 
 # --------------------------------------------------
-# ルナルナベビー風 カスタムCSS (iPhone・モバイル最適化)
+# カスタムCSS (iPhone・モバイル最適化)
 # --------------------------------------------------
 st.markdown("""
 <style>
@@ -26,7 +26,7 @@ st.markdown("""
         padding-right: 0.5rem !important;
     }
 
-    /* ルナルナ風 ヘッダー */
+    /* ヘッダー */
     .luna-title-container {
         text-align: center;
         padding: 10px 0 15px 0;
@@ -44,7 +44,7 @@ st.markdown("""
         margin-top: 2px;
     }
 
-    /* ルナルナ風 ぷっくりカード */
+    /* ぷっくりカード */
     .luna-card {
         background-color: #FFFFFF;
         border-radius: 20px;
@@ -173,11 +173,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ヘッダー
+# ヘッダー (「芳怜ちゃん育児記録」に変更)
 st.markdown("""
 <div class="luna-title-container">
-    <div class="luna-title">🌸 ルナルナ ベビー風 育児日記</div>
-    <div class="luna-subtitle">赤ちゃんの毎日のすくすく成長記録</div>
+    <div class="luna-title">🌸 芳怜ちゃん育児記録</div>
+    <div class="luna-subtitle">毎日のすくすく成長記録</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -208,6 +208,11 @@ st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>'
 
 today_date = datetime.date.today()
 selected_date = st.date_input("日付を選択", value=today_date, format="YYYY/MM/DD")
+
+# 日付表記（例：9/26(土) や 2026年9月26日）の作成
+weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
+wd_str = weekdays_jp[selected_date.weekday()]
+formatted_short_date = f"{selected_date.month}/{selected_date.day}({wd_str})"
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
 date_str = selected_date.strftime("%Y-%m-%d")
 
@@ -215,6 +220,7 @@ with st.form("record_form", clear_on_submit=False):
     col1, col2 = st.columns(2)
 
     with col1:
+        # 「時台」→「時」に変更
         hour = st.selectbox("時間帯", options=list(range(24)), format_func=lambda x: f"{x}時")
         minute = st.selectbox("分", options=list(range(0, 60, 5)), format_func=lambda x: f"{x:02d}分")
         time_str = f"{hour:02d}:{minute:02d}"
@@ -272,9 +278,9 @@ if not day_data.empty:
         </div>
         """, unsafe_allow_html=True)
 
-    # 1日の時間別グラフ
+    # 1日の時間別グラフ (例：きょうの時間別授乳グラフ (9/26(土)))
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown('<div class="luna-header">📊 きょうの時間別授乳グラフ</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ({formatted_short_date})</div>', unsafe_allow_html=True)
 
     full_hours = pd.DataFrame({"hour": list(range(24))})
     hourly_summary = day_data.groupby("hour")["milk_ml"].sum().reset_index()
@@ -361,13 +367,15 @@ else:
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# 5. カレンダー表示（縦棒グラフ対応版）
+# 5. カレンダー表示 (例：📅 9月ミルクカレンダー)
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-st.markdown('<div class="luna-header">📅 月間ミルクカレンダー</div>', unsafe_allow_html=True)
 
 year = selected_date.year
 month = selected_date.month
+
+# 具体的な月（例：9月）を入れたタイトルに変更
+st.markdown(f'<div class="luna-header">📅 {month}月ミルクカレンダー</div>', unsafe_allow_html=True)
 
 if not df.empty:
     df["date_dt"] = pd.to_datetime(df["date"])
