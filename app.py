@@ -280,7 +280,7 @@ if not day_data.empty:
 
     # 1日の時間別グラフ (例：きょうの時間別授乳グラフ (9/26(土)))
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ---{formatted_short_date}---</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ', unsafe_allow_html=True)
 
     full_hours = pd.DataFrame({"hour": list(range(24))})
     hourly_summary = day_data.groupby("hour")["milk_ml"].sum().reset_index()
