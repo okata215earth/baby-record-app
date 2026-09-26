@@ -180,13 +180,14 @@ def save_data(df):
 df = load_data()
 
 # --------------------------------------------------
-# 3. 入力エリア
+# 3. 入力エリア (起動・更新時は常に本日の日付に固定)
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
+# 毎回アプリ実行時に当日日付をデフォルト値として使用
 today_date = datetime.date.today()
-selected_date = st.date_input("日付を選択", today_date, format="YYYY/MM/DD")
+selected_date = st.date_input("日付を選択", value=today_date, format="YYYY/MM/DD")
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
 date_str = selected_date.strftime("%Y-%m-%d")
 
@@ -294,7 +295,7 @@ if not day_data.empty:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # --------------------------------------------------
-    # タイムラインカード（見やすい個別カード表示に改良）
+    # タイムラインカード（見やすい個別カード表示）
     # --------------------------------------------------
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">🕒 本日のタイムライン</div>', unsafe_allow_html=True)
@@ -347,7 +348,7 @@ else:
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📅 月間ミルクカレンダー & グラフ</div>', unsafe_allow_html=True)
 
-# 月選択
+# 選択された日付の年月を使用
 year = selected_date.year
 month = selected_date.month
 
