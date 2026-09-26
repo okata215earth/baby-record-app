@@ -1,3 +1,4 @@
+import calendar
 import datetime
 import os
 import pandas as pd
@@ -6,67 +7,163 @@ import streamlit as st
 
 # 1. ページ基本設定
 st.set_page_config(
-    page_title="赤ちゃんすくすく記録",
-    page_icon="👶",
+    page_title="ルナルナベビー風 - 赤ちゃん記録",
+    page_icon="🌸",
     layout="centered"
 )
 
 # --------------------------------------------------
-# ポップなデザイン用カスタムCSS（パステル調・丸みのあるデザイン）
+# ルナルナベビー風 カスタムCSS (iPhone・モバイル最適化)
 # --------------------------------------------------
 st.markdown("""
 <style>
-    /* 全体の背景色をほのかに優しいウォームカラーに */
+    /* 全体背景：ほんのり桜色のやさしい背景 */
     .main {
-        background-color: #FFF9F5;
-    }
-    
-    /* タイトルのデザイン */
-    .pop-title {
-        color: #FF6B81;
-        text-align: center;
-        font-weight: bold;
-        font-size: 2.2rem;
-        padding: 10px;
-        background: #FFEAA7;
-        border-radius: 20px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-        margin-bottom: 25px;
+        background-color: #FFF8F9;
+        font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+        color: #554848;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
     }
 
-    /* サブタイトルのデザイン */
-    .pop-header {
-        color: #FF7675;
-        font-weight: bold;
-        border-bottom: 3px dashed #FFB8B8;
-        padding-bottom: 5px;
-        margin-top: 20px;
+    /* ルナルナ風 ヘッダー */
+    .luna-title-container {
+        text-align: center;
+        padding: 10px 0 15px 0;
         margin-bottom: 15px;
     }
+    .luna-title {
+        color: #FF5A79;
+        font-size: 1.6rem;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+    }
+    .luna-subtitle {
+        color: #9E8B8B;
+        font-size: 0.8rem;
+        margin-top: 2px;
+    }
 
-    /* ボタンのデザインを丸くポップに */
+    /* ルナルナ風 ぷっくりカード */
+    .luna-card {
+        background-color: #FFFFFF;
+        border-radius: 20px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 14px rgba(255, 138, 158, 0.08);
+        border: 1px solid #FFEBEF;
+    }
+
+    /* ミントグリーン枠のアクセントカード */
+    .luna-card-mint {
+        background-color: #F2FAF7;
+        border-radius: 20px;
+        padding: 16px;
+        margin-bottom: 16px;
+        border: 1px solid #D5F0E6;
+    }
+
+    /* サブヘッダー */
+    .luna-header {
+        font-size: 1.05rem;
+        font-weight: bold;
+        color: #FF5A79;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* メトリクス表示 */
+    .luna-metric-val {
+        font-size: 2.0rem;
+        font-weight: bold;
+        color: #FF5A79;
+    }
+    .luna-metric-lbl {
+        font-size: 0.8rem;
+        color: #8C7B7B;
+    }
+
+    /* タイムライン個別アイテム（スマホ最適化カードデザイン） */
+    .timeline-card {
+        background-color: #FFF5F7;
+        border-left: 5px solid #FF5A79;
+        border-radius: 12px;
+        padding: 10px 14px;
+        margin-bottom: 10px;
+    }
+    .timeline-time {
+        font-size: 1.0rem;
+        font-weight: bold;
+        color: #FF5A79;
+    }
+    .timeline-badge {
+        display: inline-block;
+        background-color: #FFFFFF;
+        border: 1px solid #FFD2DC;
+        border-radius: 12px;
+        padding: 2px 8px;
+        font-size: 0.8rem;
+        margin-right: 6px;
+        color: #554848;
+    }
+
+    /* カレンダーセル用デザイン */
+    .cal-day-box {
+        background-color: #FFFFFF;
+        border: 1px solid #FFE1E8;
+        border-radius: 10px;
+        padding: 6px 2px;
+        text-align: center;
+        min-height: 58px;
+    }
+    .cal-day-num {
+        font-size: 0.75rem;
+        color: #8C7B7B;
+        font-weight: bold;
+    }
+    .cal-milk-val {
+        font-size: 0.75rem;
+        font-weight: bold;
+        color: #FF5A79;
+        margin-top: 2px;
+    }
+
+    /* ボタン（ルナルナピンクの丸いボタン） */
     .stButton > button {
-        border-radius: 20px !important;
-        background-color: #FFABE1 !important;
+        border-radius: 25px !important;
+        background: linear-gradient(135deg, #FF8A9E 0%, #FF5A79 100%) !important;
         color: white !important;
         border: none !important;
         font-weight: bold !important;
-        transition: 0.3s;
+        font-size: 0.95rem !important;
+        padding: 6px 14px !important;
+        box-shadow: 0 4px 12px rgba(255, 90, 121, 0.2) !important;
+        transition: all 0.2s ease !important;
+        width: 100%;
     }
-    .stButton > button:hover {
-        background-color: #FF80BF !important;
-        transform: scale(1.03);
+
+    /* 入力フォームの角丸・ピンクフチどり */
+    div[data-baseweb="input"], div[data-baseweb="select"] {
+        border-radius: 14px !important;
+        border-color: #FFD2DC !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ポップなタイトルの表示
-st.markdown('<div class="pop-title">👶 赤ちゃんすくすく記録 🍼</div>', unsafe_allow_html=True)
+# ヘッダー
+st.markdown("""
+<div class="luna-title-container">
+    <div class="luna-title">🌸 ルナルナ ベビー風 育児日記</div>
+    <div class="luna-subtitle">赤ちゃんの毎日のすくすく成長記録</div>
+</div>
+""", unsafe_allow_html=True)
 
 DATA_FILE = "baby_record.csv"
 
 
-# 2. データ読み込み・保存用関数
+# 2. データ読み込み・保存関数
 def load_data():
     if os.path.exists(DATA_FILE):
         return pd.read_csv(DATA_FILE)
@@ -85,11 +182,11 @@ df = load_data()
 # --------------------------------------------------
 # 3. 入力エリア
 # --------------------------------------------------
-st.markdown('<h3 class="pop-header">📝 きょうの記録</h3>', unsafe_allow_html=True)
+st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-selected_date = st.date_input(
-    "日付選択", datetime.date.today(), format="YYYY/MM/DD"
-)
+today_date = datetime.date.today()
+selected_date = st.date_input("日付を選択", today_date, format="YYYY/MM/DD")
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
 date_str = selected_date.strftime("%Y-%m-%d")
 
@@ -97,34 +194,17 @@ with st.form("record_form", clear_on_submit=False):
     col1, col2 = st.columns(2)
 
     with col1:
-        # 時間帯（0時台 〜 23時台）
-        hour = st.selectbox(
-            "⏰ 時間帯",
-            options=list(range(24)),
-            format_func=lambda x: f"{x}時",
-        )
-
-        # 分（0分〜55分、5分刻み）
-        minute = st.selectbox(
-            f"⏱️ {hour}時台の「分」",
-            options=list(range(0, 60, 5)),
-            format_func=lambda x: f"{x:02d}分",
-        )
-
+        hour = st.selectbox("時間帯", options=list(range(24)), format_func=lambda x: f"{x}時")
+        minute = st.selectbox("分", options=list(range(0, 60, 5)), format_func=lambda x: f"{x:02d}分")
         time_str = f"{hour:02d}:{minute:02d}"
-        st.caption(f"選択された時刻： **{time_str}**")
 
     with col2:
-        milk_ml = st.number_input(
-            "🍼 ミルクの量 (ml)", min_value=0, max_value=300, step=10, value=0
-        )
-        poop_size = st.radio(
-            "💩 うんちの量", options=["なし", "小", "中", "大"], horizontal=True
-        )
+        milk_ml = st.number_input("🍼 ミルクの量 (ml)", min_value=0, max_value=300, step=10, value=0)
+        poop_size = st.radio("💩 うんちの量", options=["なし", "小", "中", "大"], horizontal=True)
 
-    memo = st.text_input("✏️ メモ", placeholder="例：ごきげん、ちょっと吐き戻し")
+    memo = st.text_input("💬 メモ・ごきげん", placeholder="例：機嫌よくたくさん飲んだ！")
 
-    submitted = st.form_submit_button("✨ 記録を保存する")
+    submitted = st.form_submit_button("🌸 記録を保存する")
 
     if submitted:
         new_data = {
@@ -135,41 +215,52 @@ with st.form("record_form", clear_on_submit=False):
             "poop_size": poop_size,
             "memo": memo,
         }
-
         df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
         save_data(df)
-
-        st.success(f"{date_display} {time_str} の記録を保存しました！")
+        st.toast(f"{time_str} の記録を保存しました 💕")
         st.rerun()
 
-# --------------------------------------------------
-# 4. 可視化・管理エリア（ポップなデザイングラフ）
-# --------------------------------------------------
-st.write("---")
-st.markdown(f'<h3 class="pop-header">📊 {date_display} のサマリー</h3>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
+# --------------------------------------------------
+# 4. 当日のサマリー・グラフ・タイムライン
+# --------------------------------------------------
 day_data = df[df["date"] == date_str]
 
 if not day_data.empty:
-    # --- 指標のカード表示 ---
     total_milk = day_data["milk_ml"].sum()
     poop_count = len(day_data[day_data["poop_size"] != "なし"])
 
-    metric_col1, metric_col2 = st.columns(2)
-    metric_col1.metric("🍼 合計ミルク量", f"{total_milk} ml")
-    metric_col2.metric("💩 うんち回数", f"{poop_count} 回")
+    # サマリーカード
+    m_col1, m_col2 = st.columns(2)
+    with m_col1:
+        st.markdown(f"""
+        <div class="luna-card">
+            <div class="luna-header">🍼 ミルク合計</div>
+            <div class="luna-metric-val">{total_milk} <span style="font-size:0.9rem; color:#8C7B7B;">ml</span></div>
+            <div class="luna-metric-lbl">{date_display}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # --- 24時間 描画用データの準備 ---
+    with m_col2:
+        st.markdown(f"""
+        <div class="luna-card-mint">
+            <div class="luna-header" style="color: #2E8B75;">💩 うんち回数</div>
+            <div class="luna-metric-val" style="color: #2E8B75;">{poop_count} <span style="font-size:0.9rem; color:#5C9E8E;">回</span></div>
+            <div class="luna-metric-lbl" style="color: #5C9E8E;">{date_display}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 1日の時間別グラフレイアウト
+    st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+    st.markdown('<div class="luna-header">📊 きょうの時間別授乳グラフ</div>', unsafe_allow_html=True)
+
     full_hours = pd.DataFrame({"hour": list(range(24))})
-    hourly_summary = (
-        day_data.groupby("hour")["milk_ml"].sum().reset_index()
-    )
+    hourly_summary = day_data.groupby("hour")["milk_ml"].sum().reset_index()
     chart_data = pd.merge(full_hours, hourly_summary, on="hour", how="left").fillna(0)
 
     chart_data["hour_label"] = chart_data["hour"].apply(lambda x: f"{x:02d}:00")
-
-    # --- Plotlyによるポップな横棒グラフ ---
-    st.markdown("##### 🍼 時間帯ごとのミルク量")
+    chart_data["text_label"] = chart_data["milk_ml"].apply(lambda x: f"{int(x)}ml" if x > 0 else "")
 
     fig = px.bar(
         chart_data,
@@ -177,55 +268,164 @@ if not day_data.empty:
         y="hour_label",
         orientation="h",
         labels={"milk_ml": "ミルク (ml)", "hour_label": "時間"},
-        text="milk_ml",
+        text="text_label",
         color="milk_ml",
-        # ポップで明るいカラーグラデーション (パステルサンセット調)
-        color_continuous_scale=["#FFEAA7", "#FF7675"]
+        color_continuous_scale=["#FFEBF0", "#FF8A9E", "#FF5A79"]
     )
 
     fig.update_layout(
-        yaxis=dict(autorange="reversed"),
-        height=580,
-        margin=dict(l=10, r=20, t=10, b=10),
-        plot_bgcolor="rgba(0,0,0,0)",   # 背景を透明にしてスッキリ
+        yaxis=dict(autorange="reversed", tickfont=dict(color="#665555", size=10)),
+        xaxis=dict(tickfont=dict(color="#665555", size=10)),
+        height=450,
+        margin=dict(l=0, r=15, t=10, b=10),
+        plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        coloraxis_showscale=False,     # カラーバーを非表示にしてシンプル化
+        coloraxis_showscale=False,
     )
 
     fig.update_traces(
-        texttemplate="%{text} ml",
         textposition="outside",
+        textfont=dict(color="#FF5A79", size=11),
         cliponaxis=False,
-        marker=dict(line=dict(color="#FF6B81", width=1.5)) # バーのフチどり
+        marker=dict(line=dict(color="#FF8A9E", width=1))
     )
 
     st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- タイムライン（テーブル） ---
-    st.markdown("##### 📝 タイムライン（記録の削除・確認）")
-    
+    # --------------------------------------------------
+    # タイムラインカード（見やすい個別カード表示に改良）
+    # --------------------------------------------------
+    st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+    st.markdown('<div class="luna-header">🕒 本日のタイムライン</div>', unsafe_allow_html=True)
+
     sorted_day_data = day_data.sort_values("time_str")
 
-    h_col1, h_col2, h_col3, h_col4, h_col5 = st.columns([1.5, 2, 1.5, 3, 1])
-    h_col1.markdown("**時刻**")
-    h_col2.markdown("**ミルク**")
-    h_col3.markdown("**うんち**")
-    h_col4.markdown("**メモ**")
-    h_col5.markdown("**削除**")
-    st.divider()
-
     for idx, row in sorted_day_data.iterrows():
-        c1, c2, c3, c4, c5 = st.columns([1.5, 2, 1.5, 3, 1])
-        c1.write(row["time_str"])
-        c2.write(f"{row['milk_ml']} ml" if row["milk_ml"] > 0 else "-")
-        c3.write(row["poop_size"])
-        c4.write(row["memo"] if pd.notna(row["memo"]) and row["memo"] != "" else "-")
-        
-        if c5.button("🗑️", key=f"del_{idx}"):
-            df = df.drop(idx)
-            save_data(df)
-            st.toast(f"{row['time_str']} の記録を削除しました")
-            st.rerun()
+        milk_txt = f"{row['milk_ml']}ml" if row["milk_ml"] > 0 else "なし"
+        poop_txt = f"{row['poop_size']}" if row["poop_size"] != "なし" else "なし"
+        memo_txt = row["memo"] if pd.notna(row["memo"]) and str(row["memo"]).strip() != "" else "メモなし"
+
+        col_text, col_btn = st.columns([8.5, 1.5])
+
+        with col_text:
+            st.markdown(f"""
+            <div class="timeline-card">
+                <div class="timeline-time">⏰ {row['time_str']}</div>
+                <div style="margin-top: 6px;">
+                    <span class="timeline-badge">🍼 ミルク: <b>{milk_txt}</b></span>
+                    <span class="timeline-badge">💩 うんち: <b>{poop_txt}</b></span>
+                </div>
+                <div style="font-size: 0.8rem; color: #776666; margin-top: 6px; padding-left: 2px;">
+                    💬 {memo_txt}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col_btn:
+            st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+            if st.button("🗑️", key=f"del_{idx}"):
+                df = df.drop(idx)
+                save_data(df)
+                st.toast(f"{row['time_str']} の記録を削除しました")
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 else:
-    st.info("本日の記録はまだありません。")
+    st.markdown(f"""
+    <div class="luna-card" style="text-align: center; padding: 25px 15px;">
+        <div style="font-size: 2.0rem; margin-bottom: 6px;">🌸</div>
+        <div style="font-weight: bold; font-size: 1.0rem; color: #FF5A79;">{date_display} の記録はまだありません</div>
+        <div style="color: #9E8B8B; font-size: 0.8rem; margin-top: 4px;">上のフォームから記録をつけると、ここにサマリーとタイムラインが表示されます</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --------------------------------------------------
+# 5. カレンダー & 月間ミルク量グラフ表示
+# --------------------------------------------------
+st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+st.markdown('<div class="luna-header">📅 月間ミルクカレンダー & グラフ</div>', unsafe_allow_html=True)
+
+# 月選択
+year = selected_date.year
+month = selected_date.month
+
+# 該当月の集計データ作成
+if not df.empty:
+    df["date_dt"] = pd.to_datetime(df["date"])
+    monthly_df = df[(df["date_dt"].dt.year == year) & (df["date_dt"].dt.month == month)]
+    daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
+else:
+    daily_milk = {}
+
+# 月間トータル棒グラフ
+st.markdown(f"##### 📊 {year}年{month}月の日別トータルミルク量")
+
+if not df.empty and not monthly_df.empty:
+    daily_summary = monthly_df.groupby("date")["milk_ml"].sum().reset_index()
+    daily_summary["day_label"] = pd.to_datetime(daily_summary["date"]).dt.strftime("%m/%d")
+
+    fig_month = px.bar(
+        daily_summary,
+        x="day_label",
+        y="milk_ml",
+        labels={"day_label": "日付", "milk_ml": "合計ミルク(ml)"},
+        text="milk_ml",
+        color="milk_ml",
+        color_continuous_scale=["#FFEBF0", "#FF8A9E", "#FF5A79"]
+    )
+    fig_month.update_layout(
+        height=280,
+        margin=dict(l=0, r=0, t=20, b=0),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        coloraxis_showscale=False,
+        xaxis=dict(tickangle=-45)
+    )
+    fig_month.update_traces(
+        textposition="outside",
+        textfont=dict(color="#FF5A79", size=10)
+    )
+    st.plotly_chart(fig_month, use_container_width=True)
+else:
+    st.caption("今月の記録データがまだありません。")
+
+st.markdown("---")
+
+# カレンダー表示（グリッドレイアウト）
+st.markdown(f"##### 🗓️ {year}年{month}月 カレンダー")
+
+cal = calendar.monthcalendar(year, month)
+weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+
+# 曜日ヘッダー
+cols = st.columns(7)
+for i, wd in enumerate(weekdays):
+    color = "#FF5A79" if wd in ["土", "日"] else "#554848"
+    cols[i].markdown(f"<div style='text-align:center; font-weight:bold; font-size:0.8rem; color:{color};'>{wd}</div>", unsafe_allow_html=True)
+
+# 日付セル
+for week in cal:
+    cols = st.columns(7)
+    for i, day in enumerate(week):
+        if day == 0:
+            cols[i].markdown("<div class='cal-day-box' style='background-color:#FAF8F8;'></div>", unsafe_allow_html=True)
+        else:
+            d_str = f"{year}-{month:02d}-{day:02d}"
+            milk_val = daily_milk.get(d_str, 0)
+
+            # 今日の強調表示
+            is_today = (d_str == today_date.strftime("%Y-%m-%d"))
+            bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
+
+            milk_display = f"<div class='cal-milk-val'>🍼{milk_val}<span style='font-size:0.6rem;'>ml</span></div>" if milk_val > 0 else "<div style='font-size:0.65rem; color:#CCC; margin-top:4px;'>-</div>"
+
+            cols[i].markdown(f"""
+            <div class='cal-day-box' style='{bg_style}'>
+                <div class='cal-day-num'>{day}</div>
+                {milk_display}
+            </div>
+            """, unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
