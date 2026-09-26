@@ -109,14 +109,17 @@ st.markdown("""
         color: #554848;
     }
 
-    /* カレンダーセル用デザイン */
+    /* カレンダーセル用デザイン（内包ミニグラフ対応） */
     .cal-day-box {
         background-color: #FFFFFF;
         border: 1px solid #FFE1E8;
         border-radius: 10px;
-        padding: 6px 2px;
+        padding: 4px 2px;
         text-align: center;
-        min-height: 58px;
+        min-height: 64px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
     .cal-day-num {
         font-size: 0.75rem;
@@ -124,10 +127,24 @@ st.markdown("""
         font-weight: bold;
     }
     .cal-milk-val {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         font-weight: bold;
         color: #FF5A79;
-        margin-top: 2px;
+        margin-top: 1px;
+    }
+    /* カレンダーマス内部のミニ棒グラフ枠 */
+    .cal-bar-container {
+        background-color: #FFEBF0;
+        border-radius: 4px;
+        height: 6px;
+        width: 90%;
+        margin: 2px auto 3px auto;
+        overflow: hidden;
+    }
+    .cal-bar-fill {
+        background: linear-gradient(90deg, #FF8A9E 0%, #FF5A79 100%);
+        height: 100%;
+        border-radius: 4px;
     }
 
     /* ボタン（ルナルナピンクの丸いボタン） */
@@ -185,7 +202,6 @@ df = load_data()
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-# 毎回アプリ実行時に当日日付をデフォルト値として使用
 today_date = datetime.date.today()
 selected_date = st.date_input("日付を選択", value=today_date, format="YYYY/MM/DD")
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
@@ -252,7 +268,7 @@ if not day_data.empty:
         </div>
         """, unsafe_allow_html=True)
 
-    # 1日の時間別グラフレイアウト
+    # 1日の時間別グラフ
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📊 きょうの時間別授乳グラフ</div>', unsafe_allow_html=True)
 
@@ -294,9 +310,7 @@ if not day_data.empty:
     st.plotly_chart(fig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --------------------------------------------------
-    # タイムラインカード（見やすい個別カード表示）
-    # --------------------------------------------------
+    # タイムラインカード
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">🕒 本日のタイムライン</div>', unsafe_allow_html=True)
 
@@ -343,16 +357,14 @@ else:
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# 5. カレンダー & 月間ミルク量グラフ表示
+# 5. インラインミニ棒グラフ付き カレンダー表示
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-st.markdown('<div class="luna-header">📅 月間ミルクカレンダー & グラフ</div>', unsafe_allow_html=True)
+st.markdown('<div class="luna-header">📅 月間ミルクカレンダー</div>', unsafe_allow_html=True)
 
-# 選択された日付の年月を使用
 year = selected_date.year
 month = selected_date.month
 
-# 該当月の集計データ作成
 if not df.empty:
     df["date_dt"] = pd.to_datetime(df["date"])
     monthly_df = df[(df["date_dt"].dt.year == year) & (df["date_dt"].dt.month == month)]
@@ -360,42 +372,8 @@ if not df.empty:
 else:
     daily_milk = {}
 
-# 月間トータル棒グラフ
-st.markdown(f"##### 📊 {year}年{month}月の日別トータルミルク量")
-
-if not df.empty and not monthly_df.empty:
-    daily_summary = monthly_df.groupby("date")["milk_ml"].sum().reset_index()
-    daily_summary["day_label"] = pd.to_datetime(daily_summary["date"]).dt.strftime("%m/%d")
-
-    fig_month = px.bar(
-        daily_summary,
-        x="day_label",
-        y="milk_ml",
-        labels={"day_label": "日付", "milk_ml": "合計ミルク(ml)"},
-        text="milk_ml",
-        color="milk_ml",
-        color_continuous_scale=["#FFEBF0", "#FF8A9E", "#FF5A79"]
-    )
-    fig_month.update_layout(
-        height=280,
-        margin=dict(l=0, r=0, t=20, b=0),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        coloraxis_showscale=False,
-        xaxis=dict(tickangle=-45)
-    )
-    fig_month.update_traces(
-        textposition="outside",
-        textfont=dict(color="#FF5A79", size=10)
-    )
-    st.plotly_chart(fig_month, use_container_width=True)
-else:
-    st.caption("今月の記録データがまだありません。")
-
-st.markdown("---")
-
-# カレンダー表示（グリッドレイアウト）
-st.markdown(f"##### 🗓️ {year}年{month}月 カレンダー")
+# ミニグラフの長さスケール用（月の最大飲用量、またはデフォルト800mlを100%基準とする）
+max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.values()) > 0 else 800
 
 cal = calendar.monthcalendar(year, month)
 weekdays = ["月", "火", "水", "木", "金", "土", "日"]
@@ -406,26 +384,37 @@ for i, wd in enumerate(weekdays):
     color = "#FF5A79" if wd in ["土", "日"] else "#554848"
     cols[i].markdown(f"<div style='text-align:center; font-weight:bold; font-size:0.8rem; color:{color};'>{wd}</div>", unsafe_allow_html=True)
 
-# 日付セル
+# カレンダーマス出力（日付内にミニ棒グラフを描画）
 for week in cal:
     cols = st.columns(7)
     for i, day in enumerate(week):
         if day == 0:
-            cols[i].markdown("<div class='cal-day-box' style='background-color:#FAF8F8;'></div>", unsafe_allow_html=True)
+            cols[i].markdown("<div class='cal-day-box' style='background-color:#FAF8F8; border:1px solid #F0EAEA;'></div>", unsafe_allow_html=True)
         else:
             d_str = f"{year}-{month:02d}-{day:02d}"
             milk_val = daily_milk.get(d_str, 0)
 
-            # 今日の強調表示
+            # 割合（%）計算（最大幅100%）
+            bar_percent = min(100, int((milk_val / max_monthly_milk) * 100)) if milk_val > 0 else 0
+
+            # 今日のマスをピンク枠で強調
             is_today = (d_str == today_date.strftime("%Y-%m-%d"))
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
 
-            milk_display = f"<div class='cal-milk-val'>🍼{milk_val}<span style='font-size:0.6rem;'>ml</span></div>" if milk_val > 0 else "<div style='font-size:0.65rem; color:#CCC; margin-top:4px;'>-</div>"
+            if milk_val > 0:
+                content_html = f"""
+                <div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span></div>
+                <div class='cal-bar-container'>
+                    <div class='cal-bar-fill' style='width: {bar_percent}%;'></div>
+                </div>
+                """
+            else:
+                content_html = "<div style='font-size:0.65rem; color:#DDD; margin-top:12px;'>-</div>"
 
             cols[i].markdown(f"""
             <div class='cal-day-box' style='{bg_style}'>
                 <div class='cal-day-num'>{day}</div>
-                {milk_display}
+                {content_html}
             </div>
             """, unsafe_allow_html=True)
 
