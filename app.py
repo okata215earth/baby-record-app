@@ -1,9 +1,10 @@
 import calendar
 import datetime
-import os
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
 
 # 1. ページ基本設定
 st.set_page_config(
@@ -13,11 +14,10 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# カスタムCSS (iPhone・モバイル完全対応カレンダー)
+# カスタムCSS
 # --------------------------------------------------
 st.markdown("""
 <style>
-    /* 全体背景 */
     .main {
         background-color: #FFF8F9;
         font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
@@ -25,8 +25,6 @@ st.markdown("""
         padding-left: 0.3rem !important;
         padding-right: 0.3rem !important;
     }
-
-    /* ヘッダー */
     .luna-title-container {
         text-align: center;
         padding: 10px 0 15px 0;
@@ -43,8 +41,6 @@ st.markdown("""
         font-size: 0.8rem;
         margin-top: 2px;
     }
-
-    /* ぷっくりカード */
     .luna-card {
         background-color: #FFFFFF;
         border-radius: 20px;
@@ -53,8 +49,6 @@ st.markdown("""
         box-shadow: 0 4px 14px rgba(255, 138, 158, 0.08);
         border: 1px solid #FFEBEF;
     }
-
-    /* ミントグリーン枠のアクセントカード */
     .luna-card-mint {
         background-color: #F2FAF7;
         border-radius: 20px;
@@ -62,8 +56,6 @@ st.markdown("""
         margin-bottom: 16px;
         border: 1px solid #D5F0E6;
     }
-
-    /* サブヘッダー */
     .luna-header {
         font-size: 1.0rem;
         font-weight: bold;
@@ -73,8 +65,6 @@ st.markdown("""
         align-items: center;
         gap: 6px;
     }
-
-    /* メトリクス表示 */
     .luna-metric-val {
         font-size: 1.8rem;
         font-weight: bold;
@@ -84,8 +74,6 @@ st.markdown("""
         font-size: 0.75rem;
         color: #8C7B7B;
     }
-
-    /* タイムライン個別アイテム */
     .timeline-card {
         background-color: #FFF5F7;
         border-left: 5px solid #FF5A79;
@@ -108,10 +96,6 @@ st.markdown("""
         margin-right: 4px;
         color: #554848;
     }
-
-    /* ----------------------------------------------
-       スマホ用 7列固定グリッドカレンダー（折り返し防止）
-       ---------------------------------------------- */
     .cal-grid-container {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
@@ -119,14 +103,12 @@ st.markdown("""
         width: 100%;
         margin-top: 8px;
     }
-    
     .cal-header-cell {
         text-align: center;
         font-weight: bold;
         font-size: 0.75rem;
         padding: 4px 0;
     }
-
     .cal-day-cell {
         background-color: #FFFFFF;
         border: 1px solid #FFE1E8;
@@ -140,14 +122,12 @@ st.markdown("""
         align-items: center;
         box-sizing: border-box;
     }
-
     .cal-day-cell-empty {
         background-color: #FAF8F8;
         border: 1px solid #F2EDED;
         border-radius: 8px;
         min-height: 68px;
     }
-
     .cal-day-num {
         font-size: 0.7rem;
         color: #8C7B7B;
@@ -161,8 +141,6 @@ st.markdown("""
         margin-top: 1px;
         line-height: 1.0;
     }
-    
-    /* 縦棒グラフ用コンテナとバー */
     .cal-bar-container {
         background-color: #FFEBF0;
         border-radius: 3px;
@@ -178,8 +156,6 @@ st.markdown("""
         width: 100%;
         border-radius: 3px;
     }
-
-    /* ボタン */
     .stButton > button {
         border-radius: 25px !important;
         background: linear-gradient(135deg, #FF8A9E 0%, #FF5A79 100%) !important;
@@ -191,8 +167,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(255, 90, 121, 0.2) !important;
         width: 100%;
     }
-
-    /* 入力フォーム */
     div[data-baseweb="input"], div[data-baseweb="select"] {
         border-radius: 14px !important;
         border-color: #FFD2DC !important;
@@ -208,22 +182,57 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-DATA_FILE = "baby_record.csv"
 
+# --------------------------------------------------
+# 2. Googleスプレッドシート接続処理
+# --------------------------------------------------
+@st.cache_resource
+def get_gspread_client():
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    credentials = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=scopes
+    )
+    return gspread.authorize(credentials)
 
-# 2. データ読み込み・保存関数
+def get_worksheet():
+    gc = get_gspread_client()
+    spreadsheet_name = st.secrets["spreadsheet"]["spreadsheet_name"]
+    sh = gc.open(spreadsheet_name)
+    return sh.sheet1
+
 def load_data():
-    if os.path.exists(DATA_FILE):
-        return pd.read_csv(DATA_FILE)
-    else:
-        return pd.DataFrame(
-            columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"]
-        )
+    try:
+        ws = get_worksheet()
+        records = ws.get_all_records()
+        if not records:
+            return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
+        df = pd.DataFrame(records)
+        df["hour"] = pd.to_numeric(df["hour"], errors="coerce").fillna(0).astype(int)
+        df["milk_ml"] = pd.to_numeric(df["milk_ml"], errors="coerce").fillna(0).astype(int)
+        return df
+    except Exception as e:
+        st.error(f"スプレッドシート読み込みエラー: {e}")
+        return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
 
+def add_record(new_row):
+    ws = get_worksheet()
+    ws.append_row([
+        new_row["date"],
+        int(new_row["hour"]),
+        new_row["time_str"],
+        int(new_row["milk_ml"]),
+        new_row["poop_size"],
+        new_row["memo"]
+    ])
 
-def save_data(df):
-    df.to_csv(DATA_FILE, index=False)
-
+def delete_record_row(date_val, time_str_val):
+    ws = get_worksheet()
+    records = ws.get_all_records()
+    for idx, row in enumerate(records, start=2): # 1行目はヘッダー
+        if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
+            ws.delete_rows(idx)
+            break
 
 df = load_data()
 
@@ -267,8 +276,7 @@ with st.form("record_form", clear_on_submit=False):
             "poop_size": poop_size,
             "memo": memo,
         }
-        df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
-        save_data(df)
+        add_record(new_data)
         st.toast(f"{time_str} の記録を保存しました 💕")
         st.rerun()
 
@@ -299,11 +307,11 @@ if not day_data.empty:
         <div class="luna-card-mint">
             <div class="luna-header" style="color: #2E8B75;">💩 うんち回数</div>
             <div class="luna-metric-val" style="color: #2E8B75;">{poop_count} <span style="font-size:0.8rem; color:#5C9E8E;">回</span></div>
-            <div class="luna-metric-lbl" style="color: #5C9E8E;">{date_display}</div>
+            <div class="luna-metric-lbl">{date_display}</div>
         </div>
         """, unsafe_allow_html=True)
 
-    # 1日の時間別グラフ
+    # 時間別グラフ
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ', unsafe_allow_html=True)
 
@@ -375,8 +383,7 @@ if not day_data.empty:
         with col_btn:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             if st.button("🗑️", key=f"del_{idx}"):
-                df = df.drop(idx)
-                save_data(df)
+                delete_record_row(row["date"], row["time_str"])
                 st.toast(f"{row['time_str']} の記録を削除しました")
                 st.rerun()
 
@@ -392,7 +399,7 @@ else:
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# 5. CSS Grid式 7列固定スマホ対応カレンダー
+# 5. カレンダー表示（7列固定グリッド）
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 
@@ -402,7 +409,7 @@ month = selected_date.month
 st.markdown(f'<div class="luna-header">📅 {month}月ミルクカレンダー</div>', unsafe_allow_html=True)
 
 if not df.empty:
-    df["date_dt"] = pd.to_datetime(df["date"])
+    df["date_dt"] = pd.to_datetime(df["date"], errors="coerce")
     monthly_df = df[(df["date_dt"].dt.year == year) & (df["date_dt"].dt.month == month)]
     daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
     
@@ -417,15 +424,12 @@ max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.val
 cal = calendar.monthcalendar(year, month)
 weekdays = ["月", "火", "水", "木", "金", "土", "日"]
 
-# カレンダーのHTMLを一括で構築（7列固定グリッド）
 cal_html = '<div class="cal-grid-container">'
 
-# 曜日ヘッダー
 for wd in weekdays:
     color = "#FF5A79" if wd in ["土", "日"] else "#554848"
     cal_html += f'<div class="cal-header-cell" style="color:{color};">{wd}</div>'
 
-# 日付セル
 for week in cal:
     for day in week:
         if day == 0:
