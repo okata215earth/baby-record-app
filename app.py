@@ -188,9 +188,15 @@ st.markdown("""
 # --------------------------------------------------
 @st.cache_resource
 def get_gspread_client():
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    # スプレッドシートとDriveの両方のスコープを指定します
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    # Secrets から json_text を読み込み
+    info = json.loads(st.secrets["gcp_service_account"]["json_text"])
     credentials = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
+        info,
         scopes=scopes
     )
     return gspread.authorize(credentials)
