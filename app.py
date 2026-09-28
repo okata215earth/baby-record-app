@@ -209,7 +209,7 @@ def get_worksheet():
     return sh.sheet1
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=300)
 def load_data():
     try:
         ws = get_worksheet()
@@ -241,19 +241,35 @@ def append_row_async(new_row):
         print(f"非同期書き込みエラー: {e}")
 
 
-def add_record(new_row):
+def delete_row_async(date_val, time_str_val):
+    try:
+        ws = get_worksheet()
+        records = ws.get_all_records()
+        for idx, row in enumerate(records, start=2):
+            if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
+                ws.delete_rows(idx)
+                break
+    except Exception as e:
+        print(f"非同期削除エラー: {e}")
+
+
+def add_record_fast(new_row):
+    """メモリ上のDataFrameを即時更新して裏でスプレッドシート保存"""
+    current_df = st.session_state.get("cached_df", load_data())
+    new_df = pd.DataFrame([new_row])
+    updated_df = pd.concat([current_df, new_df], ignore_index=True)
+    
+    st.session_state["cached_df"] = updated_df
     threading.Thread(target=append_row_async, args=(new_row,)).start()
-    st.cache_data.clear()
 
 
-def delete_record_row(date_val, time_str_val):
-    ws = get_worksheet()
-    records = ws.get_all_records()
-    for idx, row in enumerate(records, start=2):
-        if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
-            ws.delete_rows(idx)
-            st.cache_data.clear()
-            break
+def delete_record_fast(date_val, time_str_val):
+    """メモリ上のDataFrameから即時削除して裏でスプレッドシート削除"""
+    current_df = st.session_state.get("cached_df", load_data())
+    updated_df = current_df[~((current_df["date"] == str(date_val)) & (current_df["time_str"] == str(time_str_val)))].reset_index(drop=True)
+    
+    st.session_state["cached_df"] = updated_df
+    threading.Thread(target=delete_row_async, args=(date_val, time_str_val)).start()
 
 
 # --------------------------------------------------
@@ -267,23 +283,23 @@ def reset_input_fields():
     st.session_state["input_memo"] = ""
 
 
-def save_record_callback():
+def save_and_reset_callback():
     sel_date = st.session_state["record_date_val"]
     date_str_val = sel_date.strftime("%Y-%m-%d")
-    time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
+    time_str = f"{int(st.session_state['input_hour']):02d}:{int(st.session_state['input_minute']):02d}"
 
     new_data = {
         "date": date_str_val,
-        "hour": st.session_state["input_hour"],
+        "hour": int(st.session_state["input_hour"]),
         "time_str": time_str,
-        "milk_ml": st.session_state["input_milk_ml"],
+        "milk_ml": int(st.session_state["input_milk_ml"]),
         "poop_size": st.session_state["input_poop_size"],
         "memo": st.session_state["input_memo"],
     }
 
-    add_record(new_data)
+    add_record_fast(new_data)
     reset_input_fields()
-    st.toast(f"{time_str} の記録を保存しました 💕")
+    st.session_state["save_toast_msg"] = f"{time_str} の記録を保存しました 💕"
 
 
 # アプリ起動・再起動時の初回初期化
@@ -303,76 +319,83 @@ if "input_poop_size" not in st.session_state:
 if "input_memo" not in st.session_state:
     st.session_state["input_memo"] = ""
 
-df = load_data()
+# キャッシュ済み DataFrame の参照
+if "cached_df" not in st.session_state:
+    st.session_state["cached_df"] = load_data()
+
+df = st.session_state["cached_df"]
 
 
 # --------------------------------------------------
-# 3. 入力エリア
+# 3. 入力エリア（@st.fragment で部分再描画）
 # --------------------------------------------------
-st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
+@st.fragment
+def render_input_form():
+    if "save_toast_msg" in st.session_state:
+        st.toast(st.session_state.pop("save_toast_msg"))
 
-selected_date = st.date_input(
-    "日付を選択",
-    format="YYYY/MM/DD",
-    on_change=reset_input_fields,
-    key="record_date_val"
-)
+    st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+    st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
-wd_str = weekdays_jp[selected_date.weekday()]
-formatted_short_date = f"{selected_date.month}/{selected_date.day}({wd_str})"
-date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
-date_str = selected_date.strftime("%Y-%m-%d")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    hour = st.selectbox(
-        "時間帯",
-        options=list(range(24)),
-        format_func=lambda x: f"{x}時",
-        key="input_hour"
-    )
-    minute = st.selectbox(
-        "分",
-        options=list(range(0, 60, 5)),
-        format_func=lambda x: f"{x:02d}分",
-        key="input_minute"
+    st.date_input(
+        "日付を選択",
+        format="YYYY/MM/DD",
+        on_change=reset_input_fields,
+        key="record_date_val"
     )
 
-with col2:
-    milk_ml = st.number_input(
-        "🍼 ミルクの量 (ml)",
-        min_value=0,
-        max_value=300,
-        step=10,
-        key="input_milk_ml"
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.selectbox(
+            "時間帯",
+            options=list(range(24)),
+            format_func=lambda x: f"{x}時",
+            key="input_hour"
+        )
+        st.selectbox(
+            "分",
+            options=list(range(0, 60, 5)),
+            format_func=lambda x: f"{x:02d}分",
+            key="input_minute"
+        )
+
+    with col2:
+        st.number_input(
+            "🍼 ミルクの量 (ml)",
+            min_value=0,
+            max_value=300,
+            step=10,
+            key="input_milk_ml"
+        )
+        st.radio(
+            "💩 うんちの量",
+            options=["なし", "小", "中", "大"],
+            horizontal=True,
+            key="input_poop_size"
+        )
+
+    st.text_input(
+        "💬 メモ・ごきげん",
+        placeholder="例：機嫌よくたくさん飲んだ！",
+        key="input_memo"
     )
-    poop_size = st.radio(
-        "💩 うんちの量",
-        options=["なし", "小", "中", "大"],
-        horizontal=True,
-        key="input_poop_size"
-    )
 
-memo = st.text_input(
-    "💬 メモ・ごきげん",
-    placeholder="例：機嫌よくたくさん飲んだ！",
-    key="input_memo"
-)
+    if st.button("🌸 記録を保存する", on_click=save_and_reset_callback):
+        st.rerun()
 
-st.button(
-    "🌸 記録を保存する",
-    on_click=save_record_callback
-)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown('</div>', unsafe_allow_html=True)
+render_input_form()
 
 
 # --------------------------------------------------
 # 4. 当日のサマリー・グラフ・タイムライン
 # --------------------------------------------------
+selected_date = st.session_state["record_date_val"]
+date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
+date_str = selected_date.strftime("%Y-%m-%d")
+
 day_data = df[df["date"] == date_str]
 
 if not day_data.empty:
@@ -468,7 +491,7 @@ if not day_data.empty:
         with col_btn:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             if st.button("🗑️", key=f"del_{idx}"):
-                delete_record_row(row["date"], row["time_str"])
+                delete_record_fast(row["date"], row["time_str"])
                 st.toast(f"{row['time_str']} の記録を削除しました")
                 st.rerun()
 
@@ -529,8 +552,6 @@ for week in cal:
             cal_html += '<div class="cal-day-cell-empty"></div>'
         else:
             d_str = f"{year}-{month:02d}-{day:02d}"
-            
-            # 各日のミルク量とうんちフラグを取得（NameErrorを防ぐ正しい定義位置）
             milk_val = daily_milk.get(d_str, 0)
             has_poop = d_str in poop_dates
 
@@ -540,7 +561,6 @@ for week in cal:
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
             poop_icon = "💩"
 
-            # 位置統一（うんちが無くても透明ダミーを表示）
             if milk_val > 0:
                 poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
                 inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
