@@ -1,6 +1,7 @@
 import calendar
 import datetime
 import json
+import uuid
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -16,7 +17,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# 本日の日付を取得
+# 毎回アクセス時のリアルな今日の日付
 today_date = datetime.date.today()
 
 # --------------------------------------------------
@@ -267,12 +268,8 @@ def reset_input_fields():
     st.session_state["input_memo"] = ""
 
 
-def on_date_change():
-    reset_input_fields()
-
-
 def save_and_reset_callback():
-    sel_date = st.session_state.get("record_date_val", today_date)
+    sel_date = st.session_state.get("selected_date_temp", today_date)
     date_str_val = sel_date.strftime("%Y-%m-%d")
     time_str = f"{int(st.session_state['input_hour']):02d}:{int(st.session_state['input_minute']):02d}"
 
@@ -313,21 +310,18 @@ if "save_toast_msg" in st.session_state:
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-# 1. 未保持の場合は「本日の日付」を初期セット
-if "record_date_val" not in st.session_state:
-    st.session_state["record_date_val"] = today_date
+# 毎回アクセス時に完全に独立したユニークIDをキーにして過去のキャッシュ復元を強力に防止
+picker_key = f"date_input_{uuid.uuid4().hex}"
 
-# 2. key に動的な日付文字列を含めることで、過去のキャッシュ（9/28など）からの自動復元を防止
 selected_date = st.date_input(
     "日付を選択",
-    value=st.session_state["record_date_val"],
+    value=today_date,
     format="YYYY/MM/DD",
-    on_change=on_date_change,
-    key=f"date_picker_{today_date.strftime('%Y%m%d')}"
+    key=picker_key
 )
 
-# 3. 選択された日付を更新保持
-st.session_state["record_date_val"] = selected_date
+# 選択された日付を一時保存
+st.session_state["selected_date_temp"] = selected_date
 
 col1, col2 = st.columns(2)
 
