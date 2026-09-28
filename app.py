@@ -508,70 +508,94 @@ else:
 
 
 # --------------------------------------------------
-# 5. カレンダー表示（日曜日始まり・7列固定グリッド）
+# 5. カレンダー表示（月選択機能付き）
 # --------------------------------------------------
-st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+@st.fragment
+def render_calendar_section():
+    st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+    st.markdown('<div class="luna-header">📅 ミルクカレンダー</div>', unsafe_allow_html=True)
 
-year = selected_date.year
-month = selected_date.month
+    # 年月選択セレクトボックス
+    c_col1, c_col2 = st.columns(2)
+    current_year = today_date.year
 
-st.markdown(f'<div class="luna-header">📅 {month}月ミルクカレンダー</div>', unsafe_allow_html=True)
+    with c_col1:
+        sel_year = st.selectbox(
+            "年",
+            options=list(range(current_year - 2, current_year + 2)),
+            index=list(range(current_year - 2, current_year + 2)).index(selected_date.year),
+            key="cal_year_select"
+        )
 
-if not df.empty:
-    df["date_dt"] = pd.to_datetime(df["date"], errors="coerce")
-    monthly_df = df[(df["date_dt"].dt.year == year) & (df["date_dt"].dt.month == month)]
-    daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
-    
-    poop_df = monthly_df[monthly_df["poop_size"] != "なし"]
-    poop_dates = set(poop_df["date"].unique())
-else:
-    daily_milk = {}
-    poop_dates = set()
+    with c_col2:
+        sel_month = st.selectbox(
+            "月",
+            options=list(range(1, 13)),
+            index=selected_date.month - 1,
+            format_func=lambda x: f"{x}月",
+            key="cal_month_select"
+        )
 
-max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.values()) > 0 else 800
+    current_df = st.session_state.get("cached_df", df)
 
-calendar.setfirstweekday(calendar.SUNDAY)
-cal = calendar.monthcalendar(year, month)
-
-weekdays = ["日", "月", "火", "水", "木", "金", "土"]
-
-cal_html = '<div class="cal-grid-container">'
-
-for wd in weekdays:
-    if wd == "日":
-        color = "#FF5A79"
-    elif wd == "土":
-        color = "#4A90E2"
+    if not current_df.empty:
+        temp_df = current_df.copy()
+        temp_df["date_dt"] = pd.to_datetime(temp_df["date"], errors="coerce")
+        monthly_df = temp_df[(temp_df["date_dt"].dt.year == sel_year) & (temp_df["date_dt"].dt.month == sel_month)]
+        daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
+        
+        poop_df = monthly_df[monthly_df["poop_size"] != "なし"]
+        poop_dates = set(poop_df["date"].unique())
     else:
-        color = "#554848"
-    cal_html += f'<div class="cal-header-cell" style="color:{color};">{wd}</div>'
+        daily_milk = {}
+        poop_dates = set()
 
-for week in cal:
-    for day in week:
-        if day == 0:
-            cal_html += '<div class="cal-day-cell-empty"></div>'
+    max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.values()) > 0 else 800
+
+    calendar.setfirstweekday(calendar.SUNDAY)
+    cal = calendar.monthcalendar(sel_year, sel_month)
+
+    weekdays = ["日", "月", "火", "水", "木", "金", "土"]
+
+    cal_html = '<div class="cal-grid-container">'
+
+    for wd in weekdays:
+        if wd == "日":
+            color = "#FF5A79"
+        elif wd == "土":
+            color = "#4A90E2"
         else:
-            d_str = f"{year}-{month:02d}-{day:02d}"
-            milk_val = daily_milk.get(d_str, 0)
-            has_poop = d_str in poop_dates
+            color = "#554848"
+        cal_html += f'<div class="cal-header-cell" style="color:{color};">{wd}</div>'
 
-            bar_percent = min(100, int((milk_val / max_monthly_milk) * 100)) if milk_val > 0 else 0
-            is_today = (d_str == today_date.strftime("%Y-%m-%d"))
-
-            bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
-            poop_icon = "💩"
-
-            if milk_val > 0:
-                poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
-                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
-            elif has_poop:
-                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+    for week in cal:
+        for day in week:
+            if day == 0:
+                cal_html += '<div class="cal-day-cell-empty"></div>'
             else:
-                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+                d_str = f"{sel_year}-{sel_month:02d}-{day:02d}"
+                milk_val = daily_milk.get(d_str, 0)
+                has_poop = d_str in poop_dates
 
-            cal_html += f'<div class="cal-day-cell" style="{bg_style}">{inner_content}</div>'
+                bar_percent = min(100, int((milk_val / max_monthly_milk) * 100)) if milk_val > 0 else 0
+                is_today = (d_str == today_date.strftime("%Y-%m-%d"))
 
-cal_html += '</div>'
+                bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
+                poop_icon = "💩"
 
-st.markdown(cal_html, unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+                if milk_val > 0:
+                    poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
+                    inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+                elif has_poop:
+                    inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+                else:
+                    inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+
+                cal_html += f'<div class="cal-day-cell" style="{bg_style}">{inner_content}</div>'
+
+    cal_html += '</div>'
+
+    st.markdown(cal_html, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+render_calendar_section()
