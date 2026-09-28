@@ -137,11 +137,11 @@ st.markdown("""
         line-height: 1.0;
     }
     .cal-milk-val {
-        font-size: 0.55rem; /* 0.55rem から 0.65rem に拡大 */
+        font-size: 0.75rem; /* 数値部分を大きく読みやすく */
         font-weight: bold;
         color: #FF5A79;
         margin-top: 1px;
-        line-height: 1.0;
+        line-height: 1.1;
     }
     .cal-bar-container {
         background-color: #FFEBF0;
@@ -528,7 +528,9 @@ for week in cal:
             poop_icon = "💩" if has_poop else ""
 
             if milk_val > 0:
-                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}m {poop_icon}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+                #inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}m {poop_icon}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+                # 修正後（ml 表記に変更し、単位を少し小さく整えて見やすく表示）
+                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span> {poop_icon}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
             elif has_poop:
                 inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.6rem;'>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
             else:
