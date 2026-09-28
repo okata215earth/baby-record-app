@@ -185,10 +185,44 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+
 # --------------------------------------------------
 # 2. Googleスプレッドシート接続処理
 # --------------------------------------------------
-# （get_gspread_client, get_worksheet, load_data などは既存のまま）
+@st.cache_resource
+def get_gspread_client():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    info = json.loads(st.secrets["gcp_service_account"]["json_text"])
+    credentials = Credentials.from_service_account_info(
+        info,
+        scopes=scopes
+    )
+    return gspread.authorize(credentials)
+    
+
+def get_worksheet():
+    gc = get_gspread_client()
+    spreadsheet_name = st.secrets["spreadsheet"]["spreadsheet_name"]
+    sh = gc.open(spreadsheet_name)
+    return sh.sheet1
+
+@st.cache_data(ttl=60)
+def load_data():
+    try:
+        ws = get_worksheet()
+        records = ws.get_all_records()
+        if not records:
+            return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
+        df = pd.DataFrame(records)
+        df["hour"] = pd.to_numeric(df["hour"], errors="coerce").fillna(0).astype(int)
+        df["milk_ml"] = pd.to_numeric(df["milk_ml"], errors="coerce").fillna(0).astype(int)
+        return df
+    except Exception as e:
+        st.error(f"スプレッドシート読み込みエラー: {e}")
+        return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
 
 def append_row_async(new_row):
     """スプレッドシートへの追加書き込みをバックグラウンドで処理する関数"""
@@ -333,6 +367,7 @@ st.button(
 )
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 # --------------------------------------------------
 # 4. 当日のサマリー・グラフ・タイムライン
@@ -508,14 +543,14 @@ for week in cal:
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
             poop_icon = "💩" if has_poop else ""
 
-            # 変更後（うんちがない日も透明なダミー行を入れて高さを統一）
-            if milk_val > 0:
-                poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
-                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
-            elif has_poop:
-                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
-            else:
-                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+        # 変更後（うんちがない日も透明なダミー行を入れて高さを統一）
+        if milk_val > 0:
+            poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
+            inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+        elif has_poop:
+            inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+        else:
+            inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
 
             cal_html += f'<div class="cal-day-cell" style="{bg_style}">{inner_content}</div>'
 
