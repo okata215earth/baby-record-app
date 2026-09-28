@@ -209,7 +209,6 @@ def get_worksheet():
     return sh.sheet1
 
 
-# 長期キャッシュ（有効期限5分）。保存や削除のたびに全取得し直さない
 @st.cache_data(ttl=300)
 def load_data():
     try:
@@ -227,7 +226,6 @@ def load_data():
 
 
 def append_row_async(new_row):
-    """通信待ちをなくすバックグラウンド保存処理"""
     try:
         ws = get_worksheet()
         ws.append_row([
@@ -243,7 +241,6 @@ def append_row_async(new_row):
 
 
 def delete_row_async(date_val, time_str_val):
-    """通信待ちをなくすバックグラウンド削除処理"""
     try:
         ws = get_worksheet()
         records = ws.get_all_records()
@@ -256,29 +253,23 @@ def delete_row_async(date_val, time_str_val):
 
 
 def add_record_fast(new_row):
-    """キャッシュを即時手元更新して非同期でスプレッドシートへ書き込み"""
     df = load_data()
     new_df = pd.DataFrame([new_row])
     updated_df = pd.concat([df, new_df], ignore_index=True)
     
-    # キャッシュを直接上書き更新（スプレッドシートの再読み込みを発生させない）
     load_data.clear()
     st.session_state["cached_df"] = updated_df
     
-    # バックグラウンドで書き込み実行
     threading.Thread(target=append_row_async, args=(new_row,)).start()
 
 
 def delete_record_fast(date_val, time_str_val):
-    """キャッシュから対象行を即時除外して非同期でスプレッドシート削除"""
     df = load_data()
     updated_df = df[~((df["date"] == str(date_val)) & (df["time_str"] == str(time_str_val)))].reset_index(drop=True)
     
-    # キャッシュを直接上書き更新
     load_data.clear()
     st.session_state["cached_df"] = updated_df
     
-    # バックグラウンドで削除実行
     threading.Thread(target=delete_row_async, args=(date_val, time_str_val)).start()
 
 
@@ -291,25 +282,6 @@ def reset_input_fields():
     st.session_state["input_milk_ml"] = 0
     st.session_state["input_poop_size"] = "なし"
     st.session_state["input_memo"] = ""
-
-
-def save_record_callback():
-    sel_date = st.session_state["record_date_val"]
-    date_str_val = sel_date.strftime("%Y-%m-%d")
-    time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
-
-    new_data = {
-        "date": date_str_val,
-        "hour": int(st.session_state["input_hour"]),
-        "time_str": time_str,
-        "milk_ml": int(st.session_state["input_milk_ml"]),
-        "poop_size": st.session_state["input_poop_size"],
-        "memo": st.session_state["input_memo"],
-    }
-
-    add_record_fast(new_data)
-    reset_input_fields()
-    st.toast(f"{time_str} の記録を保存しました 💕")
 
 
 # アプリ起動・再起動時の初回初期化
@@ -338,72 +310,90 @@ else:
 
 
 # --------------------------------------------------
-# 3. 入力エリア
+# 3. 入力エリア（@st.fragment で部分再描画化）
 # --------------------------------------------------
-st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
+@st.fragment
+def render_input_form():
+    st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+    st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-selected_date = st.date_input(
-    "日付を選択",
-    format="YYYY/MM/DD",
-    on_change=reset_input_fields,
-    key="record_date_val"
-)
-
-weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
-wd_str = weekdays_jp[selected_date.weekday()]
-formatted_short_date = f"{selected_date.month}/{selected_date.day}({wd_str})"
-date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
-date_str = selected_date.strftime("%Y-%m-%d")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    hour = st.selectbox(
-        "時間帯",
-        options=list(range(24)),
-        format_func=lambda x: f"{x}時",
-        key="input_hour"
-    )
-    minute = st.selectbox(
-        "分",
-        options=list(range(0, 60, 5)),
-        format_func=lambda x: f"{x:02d}分",
-        key="input_minute"
+    selected_date = st.date_input(
+        "日付を選択",
+        format="YYYY/MM/DD",
+        on_change=reset_input_fields,
+        key="record_date_val"
     )
 
-with col2:
-    milk_ml = st.number_input(
-        "🍼 ミルクの量 (ml)",
-        min_value=0,
-        max_value=300,
-        step=10,
-        key="input_milk_ml"
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.selectbox(
+            "時間帯",
+            options=list(range(24)),
+            format_func=lambda x: f"{x}時",
+            key="input_hour"
+        )
+        st.selectbox(
+            "分",
+            options=list(range(0, 60, 5)),
+            format_func=lambda x: f"{x:02d}分",
+            key="input_minute"
+        )
+
+    with col2:
+        st.number_input(
+            "🍼 ミルクの量 (ml)",
+            min_value=0,
+            max_value=300,
+            step=10,
+            key="input_milk_ml"
+        )
+        st.radio(
+            "💩 うんちの量",
+            options=["なし", "小", "中", "大"],
+            horizontal=True,
+            key="input_poop_size"
+        )
+
+    st.text_input(
+        "💬 メモ・ごきげん",
+        placeholder="例：機嫌よくたくさん飲んだ！",
+        key="input_memo"
     )
-    poop_size = st.radio(
-        "💩 うんちの量",
-        options=["なし", "小", "中", "大"],
-        horizontal=True,
-        key="input_poop_size"
-    )
 
-memo = st.text_input(
-    "💬 メモ・ごきげん",
-    placeholder="例：機嫌よくたくさん飲んだ！",
-    key="input_memo"
-)
+    if st.button("🌸 記録を保存する"):
+        sel_date = st.session_state["record_date_val"]
+        date_str_val = sel_date.strftime("%Y-%m-%d")
+        time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
 
-st.button(
-    "🌸 記録を保存する",
-    on_click=save_record_callback
-)
+        new_data = {
+            "date": date_str_val,
+            "hour": int(st.session_state["input_hour"]),
+            "time_str": time_str,
+            "milk_ml": int(st.session_state["input_milk_ml"]),
+            "poop_size": st.session_state["input_poop_size"],
+            "memo": st.session_state["input_memo"],
+        }
 
-st.markdown('</div>', unsafe_allow_html=True)
+        add_record_fast(new_data)
+        reset_input_fields()
+        st.toast(f"{time_str} の記録を保存しました 💕")
+        # グラフやカレンダーに反映させるため全体を更新
+        st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# フォーム部分の呼び出し
+render_input_form()
 
 
 # --------------------------------------------------
 # 4. 当日のサマリー・グラフ・タイムライン
 # --------------------------------------------------
+selected_date = st.session_state["record_date_val"]
+date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
+date_str = selected_date.strftime("%Y-%m-%d")
+
 day_data = df[df["date"] == date_str]
 
 if not day_data.empty:
