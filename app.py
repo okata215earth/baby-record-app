@@ -6,26 +6,24 @@ import plotly.express as px
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-import streamlit.components.v1 as components
 
 # --------------------------------------------------
 # 1. ページ基本設定
 # --------------------------------------------------
-st.set_page_config(page_title="芳怜ちゃん育児記録", page_icon="🌸", layout="centered")
+st.set_page_config(
+    page_title="芳怜ちゃん育児記録",
+    page_icon="🌸",
+    layout="centered"
+)
 
 today_date = datetime.date.today()
 
 # --------------------------------------------------
-# iOSのキャッシュ対策：ページ読込時にSession Stateを本日にリセット
+# iOSの復元対策：初回アクセス・アプリ起動時は必ず「本日」をセット
 # --------------------------------------------------
-# クエリパラメータやセッション初期化で「起動時は常に今日」を保証する
 if "app_initialized" not in st.session_state:
     st.session_state["app_initialized"] = True
     st.session_state["record_date_val"] = today_date
-
-# 画面のリロード（PWAの復元）時に毎回今日の日付が選択されるようにする
-# ※もし「記録作業中」のみ保持したい場合は、以下のように判定します
-
 
 # --------------------------------------------------
 # カスタムCSS
@@ -321,7 +319,7 @@ if "save_toast_msg" in st.session_state:
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-# 日付が変更されたら on_date_change コールバックを呼んで全体を更新
+# key="record_date_val" を設定することで、Session State と自動同期されます（エラー回避）
 st.date_input(
     "日付を選択",
     format="YYYY/MM/DD",
@@ -375,24 +373,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 # --------------------------------------------------
 # 4. 選択日付のサマリー・グラフ・タイムライン
 # --------------------------------------------------
-# 日付選択のキーを管理
-if "record_date_val" not in st.session_state:
-    st.session_state["record_date_val"] = datetime.date.today()
-
-# 日付選択フォーム
-selected_date = st.date_input(
-    "日付を選択",
-    value=st.session_state["record_date_val"],
-    format="YYYY/MM/DD",
-    key="date_picker_widget" # 固定キーではなく内部値で管理
-)
-
-# 選択された日付が更新されたらセッションに保存して即座に画面反映
-if selected_date != st.session_state["record_date_val"]:
-    st.session_state["record_date_val"] = selected_date
-    st.rerun()
-
-#selected_date = st.session_state.get("record_date_val", today_date)
+selected_date = st.session_state.get("record_date_val", today_date)
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
 date_str = selected_date.strftime("%Y-%m-%d")
 
@@ -578,7 +559,6 @@ for week in cal:
             bar_percent = min(100, int((milk_val / max_monthly_milk) * 100)) if milk_val > 0 else 0
             is_selected = (d_str == selected_date.strftime("%Y-%m-%d"))
 
-            # 選択中の日付の枠線・背景色を強調表示
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_selected else ""
             poop_icon = "💩"
 
