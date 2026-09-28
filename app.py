@@ -274,7 +274,7 @@ def delete_record_fast(date_val, time_str_val):
 
 
 # --------------------------------------------------
-# 入力リセット処理＆初期値設定
+# 入力リセット処理＆コールバック関数
 # --------------------------------------------------
 def reset_input_fields():
     st.session_state["input_hour"] = 0
@@ -282,6 +282,26 @@ def reset_input_fields():
     st.session_state["input_milk_ml"] = 0
     st.session_state["input_poop_size"] = "なし"
     st.session_state["input_memo"] = ""
+
+
+def save_and_reset_callback():
+    """保存ボタンが押されたときの処理（ウィジェット描画前コールバック）"""
+    sel_date = st.session_state["record_date_val"]
+    date_str_val = sel_date.strftime("%Y-%m-%d")
+    time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
+
+    new_data = {
+        "date": date_str_val,
+        "hour": int(st.session_state["input_hour"]),
+        "time_str": time_str,
+        "milk_ml": int(st.session_state["input_milk_ml"]),
+        "poop_size": st.session_state["input_poop_size"],
+        "memo": st.session_state["input_memo"],
+    }
+
+    add_record_fast(new_data)
+    reset_input_fields()
+    st.session_state["save_toast_msg"] = f"{time_str} の記録を保存しました 💕"
 
 
 # アプリ起動・再起動時の初回初期化
@@ -314,10 +334,13 @@ else:
 # --------------------------------------------------
 @st.fragment
 def render_input_form():
+    if "save_toast_msg" in st.session_state:
+        st.toast(st.session_state.pop("save_toast_msg"))
+
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-    selected_date = st.date_input(
+    st.date_input(
         "日付を選択",
         format="YYYY/MM/DD",
         on_change=reset_input_fields,
@@ -361,25 +384,8 @@ def render_input_form():
         key="input_memo"
     )
 
-    if st.button("🌸 記録を保存する"):
-        sel_date = st.session_state["record_date_val"]
-        date_str_val = sel_date.strftime("%Y-%m-%d")
-        time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
-
-        new_data = {
-            "date": date_str_val,
-            "hour": int(st.session_state["input_hour"]),
-            "time_str": time_str,
-            "milk_ml": int(st.session_state["input_milk_ml"]),
-            "poop_size": st.session_state["input_poop_size"],
-            "memo": st.session_state["input_memo"],
-        }
-
-        add_record_fast(new_data)
-        reset_input_fields()
-        st.toast(f"{time_str} の記録を保存しました 💕")
-        # グラフやカレンダーに反映させるため全体を更新
-        st.rerun()
+    # コールバック(on_click)を使うことで安全にフォームのリセットと全体の再描画を行います
+    st.button("🌸 記録を保存する", on_click=save_and_reset_callback)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
