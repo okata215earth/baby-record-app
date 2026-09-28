@@ -248,6 +248,7 @@ def delete_record_row(date_val, time_str_val):
 # 入力リセット処理＆初期値設定
 # --------------------------------------------------
 def reset_input_fields():
+    # 入力項目のみ初期値にリセット（日付はリセットせず選択状態を維持）
     st.session_state["input_hour"] = 0
     st.session_state["input_minute"] = 0
     st.session_state["input_milk_ml"] = 0
@@ -255,10 +256,14 @@ def reset_input_fields():
     st.session_state["input_memo"] = ""
 
 # 保存ボタンが押された時のコールバック関数
-def save_record_callback(date_str):
+def save_record_callback():
+    # 現在選択されている日付を取得
+    sel_date = st.session_state["record_date_val"]
+    date_str_val = sel_date.strftime("%Y-%m-%d")
+    
     time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
     new_data = {
-        "date": date_str,
+        "date": date_str_val,
         "hour": st.session_state["input_hour"],
         "time_str": time_str,
         "milk_ml": st.session_state["input_milk_ml"],
@@ -266,11 +271,17 @@ def save_record_callback(date_str):
         "memo": st.session_state["input_memo"],
     }
     add_record(new_data)
-    # ボタンクリック時（Widget描画前）にリセットを実行
+    # 記録保存後に入力欄（時・分・ミルク・便・メモ）を初期化
     reset_input_fields()
     st.toast(f"{time_str} の記録を保存しました 💕")
 
-# セッション状態の初回初期化
+# セッション状態の初回初期化（アプリ起動・再起動時）
+today_date = datetime.date.today()
+
+# 再起動時は「当日」をデフォルト値としてセット
+if "record_date_val" not in st.session_state:
+    st.session_state["record_date_val"] = today_date
+
 if "input_hour" not in st.session_state:
     st.session_state["input_hour"] = 0
 if "input_minute" not in st.session_state:
@@ -290,15 +301,12 @@ df = load_data()
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-today_date = datetime.date.today()
-
-# 日付選択（日付を変更した瞬間に reset_input_fields が実行されます）
+# 日付選択（日付変更時に入力項目のみリセットし、変更後の日付を保持）
 selected_date = st.date_input(
     "日付を選択",
-    value=today_date,
     format="YYYY/MM/DD",
     on_change=reset_input_fields,
-    key="selected_date"
+    key="record_date_val"
 )
 
 weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
@@ -344,11 +352,10 @@ memo = st.text_input(
     key="input_memo"
 )
 
-# ボタンの on_click コールバックを利用することで Widget 描画前に安全にリセットされます
+# 保存ボタン
 st.button(
     "🌸 記録を保存する",
-    on_click=save_record_callback,
-    args=(date_str,)
+    on_click=save_record_callback
 )
 
 st.markdown('</div>', unsafe_allow_html=True)
