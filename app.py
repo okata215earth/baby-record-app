@@ -16,6 +16,9 @@ st.set_page_config(
     layout="centered"
 )
 
+# 本日の日付を取得
+today_date = datetime.date.today()
+
 # --------------------------------------------------
 # カスタムCSS
 # --------------------------------------------------
@@ -269,7 +272,7 @@ def on_date_change():
 
 
 def save_and_reset_callback():
-    sel_date = st.session_state.get("record_date_val", datetime.date.today())
+    sel_date = st.session_state.get("record_date_val", today_date)
     date_str_val = sel_date.strftime("%Y-%m-%d")
     time_str = f"{int(st.session_state['input_hour']):02d}:{int(st.session_state['input_minute']):02d}"
 
@@ -310,14 +313,21 @@ if "save_toast_msg" in st.session_state:
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-# value に直接 datetime.date.today() をセットすることでアクセスタイミングの「今日」を常にセット
+# 1. 未保持の場合は「本日の日付」を初期セット
+if "record_date_val" not in st.session_state:
+    st.session_state["record_date_val"] = today_date
+
+# 2. key に動的な日付文字列を含めることで、過去のキャッシュ（9/28など）からの自動復元を防止
 selected_date = st.date_input(
     "日付を選択",
-    value=datetime.date.today(),
+    value=st.session_state["record_date_val"],
     format="YYYY/MM/DD",
     on_change=on_date_change,
-    key="record_date_val"
+    key=f"date_picker_{today_date.strftime('%Y%m%d')}"
 )
+
+# 3. 選択された日付を更新保持
+st.session_state["record_date_val"] = selected_date
 
 col1, col2 = st.columns(2)
 
@@ -486,8 +496,7 @@ st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📅 ミルクカレンダー</div>', unsafe_allow_html=True)
 
 c_col1, c_col2 = st.columns(2)
-today_ref = datetime.date.today()
-current_year = today_ref.year
+current_year = today_date.year
 
 years_options = list(range(current_year - 2, current_year + 2))
 year_index = years_options.index(selected_date.year) if selected_date.year in years_options else years_options.index(current_year)
