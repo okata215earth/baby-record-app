@@ -111,19 +111,19 @@ st.markdown("""
         padding: 4px 0;
     }
     .cal-day-cell {
-            background-color: #FFFFFF;
-            border: 1px solid #FFE1E8;
-            border-radius: 8px;
-            padding: 3px 0px 0px 0px; /* 左右と下の余白を0にして棒グラフを端まで広げる */
-            text-align: center;
-            min-height: 68px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            align-items: center;
-            box-sizing: border-box;
-            overflow: hidden; /* 角丸からはみ出るのを防止 */
-        }
+        background-color: #FFFFFF;
+        border: 1px solid #FFE1E8;
+        border-radius: 8px;
+        padding: 3px 0px 0px 0px;
+        text-align: center;
+        min-height: 68px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
     .cal-day-cell-empty {
         background-color: #FAF8F8;
         border: 1px solid #F2EDED;
@@ -145,10 +145,10 @@ st.markdown("""
     }
     .cal-bar-container {
         background-color: #FFEBF0;
-        border-radius: 3px;
+        border-radius: 0 0 6px 6px;
         height: 22px;
-        width: 10px;
-        margin: 2px auto 1px auto;
+        width: 100%;
+        margin: 2px 0 0 0;
         display: flex;
         align-items: flex-end;
         overflow: hidden;
@@ -156,7 +156,7 @@ st.markdown("""
     .cal-bar-fill {
         background: linear-gradient(0deg, #FF8A9E 0%, #FF5A79 100%);
         width: 100%;
-        border-radius: 3px;
+        border-radius: 0;
     }
     .stButton > button {
         border-radius: 25px !important;
