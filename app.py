@@ -302,11 +302,19 @@ def save_and_reset_callback():
     st.session_state["save_toast_msg"] = f"{time_str} の記録を保存しました 💕"
 
 
-# 常に「最新の今日の日付」を取得
+# --------------------------------------------------
+# 日付の自動チェック＆同期処理（iPhoneのキャッシュ・固まり対策）
+# --------------------------------------------------
 today_date = datetime.date.today()
 
-# record_date_val が存在しない場合のみ初期化
-if "record_date_val" not in st.session_state:
+# 最後に記録・確認した「システム上の今日の日付」を追跡
+if "last_system_date" not in st.session_state:
+    st.session_state["last_system_date"] = today_date
+    st.session_state["record_date_val"] = today_date
+
+# 日を跨いでアプリを再開した、または以前のセッションが残っていた場合に最新化
+if st.session_state["last_system_date"] != today_date:
+    st.session_state["last_system_date"] = today_date
     st.session_state["record_date_val"] = today_date
 
 if "input_hour" not in st.session_state:
@@ -338,7 +346,7 @@ def render_input_form():
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-    # value を削除し、Session State のみの管理にしてエラーを回避
+    # st.date_input に value を持たせず key のみでコントロール
     st.date_input(
         "日付を選択",
         format="YYYY/MM/DD",
