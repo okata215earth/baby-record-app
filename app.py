@@ -17,13 +17,12 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# 再起動時・画面読み込み時に常に今日の日付を最新化
+# 再起動時・画面読み込み時の日付制御
 # --------------------------------------------------
 today_date = datetime.date.today()
 
-# セッション状態の初期化および再起動時の「本日の日付」セット
-if "initialized" not in st.session_state:
-    st.session_state["initialized"] = True
+# 初回アクセス（アプリ再起動時）は必ず今日の日付をセット
+if "record_date_val" not in st.session_state:
     st.session_state["record_date_val"] = today_date
 
 # --------------------------------------------------
@@ -264,7 +263,7 @@ def delete_row(date_val, time_str_val):
 
 
 # --------------------------------------------------
-# 入力リセット処理＆初期値設定
+# 入力リセット処理＆日付変更コールバック
 # --------------------------------------------------
 def reset_input_fields():
     st.session_state["input_hour"] = 0
@@ -272,6 +271,10 @@ def reset_input_fields():
     st.session_state["input_milk_ml"] = 0
     st.session_state["input_poop_size"] = "なし"
     st.session_state["input_memo"] = ""
+
+
+def on_date_change():
+    reset_input_fields()
 
 
 def save_and_reset_callback():
@@ -310,72 +313,65 @@ df = load_data()
 # --------------------------------------------------
 # 3. 入力エリア
 # --------------------------------------------------
-@st.fragment
-def render_input_form():
-    if "save_toast_msg" in st.session_state:
-        st.toast(st.session_state.pop("save_toast_msg"))
+if "save_toast_msg" in st.session_state:
+    st.toast(st.session_state.pop("save_toast_msg"))
 
-    st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
+st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-    # ユーザーが変更した値を session_state["record_date_val"] に保持し、初期値(value)として渡す
-    current_selected_date = st.session_state.get("record_date_val", today_date)
-    
-    st.date_input(
-        "日付を選択",
-        value=current_selected_date,
-        format="YYYY/MM/DD",
-        on_change=reset_input_fields,
-        key="record_date_val"
+# 日付が変更されたら on_date_change コールバックを呼んで全体を更新
+st.date_input(
+    "日付を選択",
+    format="YYYY/MM/DD",
+    on_change=on_date_change,
+    key="record_date_val"
+)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.selectbox(
+        "時間帯",
+        options=list(range(24)),
+        format_func=lambda x: f"{x}時",
+        key="input_hour"
+    )
+    st.selectbox(
+        "分",
+        options=list(range(0, 60, 5)),
+        format_func=lambda x: f"{x:02d}分",
+        key="input_minute"
     )
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.selectbox(
-            "時間帯",
-            options=list(range(24)),
-            format_func=lambda x: f"{x}時",
-            key="input_hour"
-        )
-        st.selectbox(
-            "分",
-            options=list(range(0, 60, 5)),
-            format_func=lambda x: f"{x:02d}分",
-            key="input_minute"
-        )
-
-    with col2:
-        st.number_input(
-            "🍼 ミルクの量 (ml)",
-            min_value=0,
-            max_value=300,
-            step=10,
-            key="input_milk_ml"
-        )
-        st.radio(
-            "💩 うんちの量",
-            options=["なし", "小", "中", "大"],
-            horizontal=True,
-            key="input_poop_size"
-        )
-
-    st.text_input(
-        "💬 メモ・ごきげん",
-        placeholder="例：機嫌よくたくさん飲んだ！",
-        key="input_memo"
+with col2:
+    st.number_input(
+        "🍼 ミルクの量 (ml)",
+        min_value=0,
+        max_value=300,
+        step=10,
+        key="input_milk_ml"
+    )
+    st.radio(
+        "💩 うんちの量",
+        options=["なし", "小", "中", "大"],
+        horizontal=True,
+        key="input_poop_size"
     )
 
-    if st.button("🌸 記録を保存する", on_click=save_and_reset_callback):
-        st.rerun()
+st.text_input(
+    "💬 メモ・ごきげん",
+    placeholder="例：機嫌よくたくさん飲んだ！",
+    key="input_memo"
+)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+if st.button("🌸 記録を保存する", on_click=save_and_reset_callback):
+    st.rerun()
 
-render_input_form()
+st.markdown('</div>', unsafe_allow_html=True)
 
 
 # --------------------------------------------------
-# 4. 当日のサマリー・グラフ・タイムライン
+# 4. 選択日付のサマリー・グラフ・タイムライン
 # --------------------------------------------------
 selected_date = st.session_state.get("record_date_val", today_date)
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
@@ -407,7 +403,7 @@ if not day_data.empty:
         """, unsafe_allow_html=True)
 
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown('<div class="luna-header">📊 きょうの時間別授乳グラフ </div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="luna-header">📊 {date_display} の時間別授乳グラフ </div>', unsafe_allow_html=True)
 
     full_hours = pd.DataFrame({"hour": list(range(24))})
     hourly_summary = day_data.groupby("hour")["milk_ml"].sum().reset_index()
@@ -448,7 +444,7 @@ if not day_data.empty:
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown('<div class="luna-header">🕒 本日のタイムライン</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="luna-header">🕒 {date_display} のタイムライン</div>', unsafe_allow_html=True)
 
     sorted_day_data = day_data.sort_values("time_str")
 
@@ -495,92 +491,89 @@ else:
 # --------------------------------------------------
 # 5. カレンダー表示（月選択機能付き）
 # --------------------------------------------------
-@st.fragment
-def render_calendar_section():
-    st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown('<div class="luna-header">📅 ミルクカレンダー</div>', unsafe_allow_html=True)
+st.markdown('<div class="luna-card">', unsafe_allow_html=True)
+st.markdown('<div class="luna-header">📅 ミルクカレンダー</div>', unsafe_allow_html=True)
 
-    c_col1, c_col2 = st.columns(2)
-    current_year = today_date.year
+c_col1, c_col2 = st.columns(2)
+current_year = today_date.year
 
-    years_options = list(range(current_year - 2, current_year + 2))
-    year_index = years_options.index(selected_date.year) if selected_date.year in years_options else years_options.index(current_year)
+years_options = list(range(current_year - 2, current_year + 2))
+year_index = years_options.index(selected_date.year) if selected_date.year in years_options else years_options.index(current_year)
 
-    with c_col1:
-        sel_year = st.selectbox(
-            "年",
-            options=years_options,
-            index=year_index,
-            key="cal_year_select"
-        )
+with c_col1:
+    sel_year = st.selectbox(
+        "年",
+        options=years_options,
+        index=year_index,
+        key="cal_year_select"
+    )
 
-    with c_col2:
-        sel_month = st.selectbox(
-            "月",
-            options=list(range(1, 13)),
-            index=selected_date.month - 1,
-            format_func=lambda x: f"{x}月",
-            key="cal_month_select"
-        )
+with c_col2:
+    sel_month = st.selectbox(
+        "月",
+        options=list(range(1, 13)),
+        index=selected_date.month - 1,
+        format_func=lambda x: f"{x}月",
+        key="cal_month_select"
+    )
 
-    if not df.empty:
-        temp_df = df.copy()
-        temp_df["date_dt"] = pd.to_datetime(temp_df["date"], errors="coerce")
-        monthly_df = temp_df[(temp_df["date_dt"].dt.year == sel_year) & (temp_df["date_dt"].dt.month == sel_month)]
-        daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
-        
-        poop_df = monthly_df[monthly_df["poop_size"] != "なし"]
-        poop_dates = set(poop_df["date"].unique())
+if not df.empty:
+    temp_df = df.copy()
+    temp_df["date_dt"] = pd.to_datetime(temp_df["date"], errors="coerce")
+    monthly_df = temp_df[(temp_df["date_dt"].dt.year == sel_year) & (temp_df["date_dt"].dt.month == sel_month)]
+    daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
+    
+    poop_df = monthly_df[monthly_df["poop_size"] != "なし"]
+    poop_dates = set(poop_df["date"].unique())
+else:
+    daily_milk = {}
+    poop_dates = set()
+
+max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.values()) > 0 else 800
+
+calendar.setfirstweekday(calendar.SUNDAY)
+cal = calendar.monthcalendar(sel_year, sel_month)
+
+weekdays = ["日", "月", "火", "水", "木", "金", "土"]
+
+cal_html = '<div class="cal-grid-container">'
+
+for wd in weekdays:
+    if wd == "日":
+        color = "#FF5A79"
+    elif wd == "土":
+        color = "#4A90E2"
     else:
-        daily_milk = {}
-        poop_dates = set()
+        color = "#554848"
+    cal_html += f'<div class="cal-header-cell" style="color:{color};">{wd}</div>'
 
-    max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.values()) > 0 else 800
-
-    calendar.setfirstweekday(calendar.SUNDAY)
-    cal = calendar.monthcalendar(sel_year, sel_month)
-
-    weekdays = ["日", "月", "火", "水", "木", "金", "土"]
-
-    cal_html = '<div class="cal-grid-container">'
-
-    for wd in weekdays:
-        if wd == "日":
-            color = "#FF5A79"
-        elif wd == "土":
-            color = "#4A90E2"
+for week in cal:
+    for day in week:
+        if day == 0:
+            cal_html += '<div class="cal-day-cell-empty"></div>'
         else:
-            color = "#554848"
-        cal_html += f'<div class="cal-header-cell" style="color:{color};">{wd}</div>'
+            d_str = f"{sel_year}-{sel_month:02d}-{day:02d}"
+            milk_val = daily_milk.get(d_str, 0)
+            has_poop = d_str in poop_dates
 
-    for week in cal:
-        for day in week:
-            if day == 0:
-                cal_html += '<div class="cal-day-cell-empty"></div>'
+            bar_percent = min(100, int((milk_val / max_monthly_milk) * 100)) if milk_val > 0 else 0
+            is_selected = (d_str == selected_date.strftime("%Y-%m-%d"))
+
+            # 選択中の日付の枠線・背景色を強調表示
+            bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_selected else ""
+            poop_icon = "💩"
+
+            if milk_val > 0:
+                poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+            elif has_poop:
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
             else:
-                d_str = f"{sel_year}-{sel_month:02d}-{day:02d}"
-                milk_val = daily_milk.get(d_str, 0)
-                has_poop = d_str in poop_dates
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
 
-                bar_percent = min(100, int((milk_val / max_monthly_milk) * 100)) if milk_val > 0 else 0
-                is_today = (d_str == today_date.strftime("%Y-%m-%d"))
+            cal_html += f'<div class="cal-day-cell" style="{bg_style}">{inner_content}</div>'
 
-                bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
-                poop_icon = "💩"
+cal_html += '</div>'
 
-                if milk_val > 0:
-                    poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
-                    inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
-                elif has_poop:
-                    inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
-                else:
-                    inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
-
-                cal_html += f'<div class="cal-day-cell" style="{bg_style}">{inner_content}</div>'
-
-    cal_html += '</div>'
-
-    st.markdown(cal_html, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-render_calendar_section()
+st.markdown(cal_html, unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
