@@ -284,7 +284,7 @@ def reset_input_fields():
 
 
 def save_and_reset_callback():
-    sel_date = st.session_state["record_date_val"]
+    sel_date = st.session_state.get("record_date_val", datetime.date.today())
     date_str_val = sel_date.strftime("%Y-%m-%d")
     time_str = f"{int(st.session_state['input_hour']):02d}:{int(st.session_state['input_minute']):02d}"
 
@@ -302,10 +302,19 @@ def save_and_reset_callback():
     st.session_state["save_toast_msg"] = f"{time_str} の記録を保存しました 💕"
 
 
-# アプリ起動・再起動時の初回初期化
+# --------------------------------------------------
+# 日付の自動チェック＆同期処理（iPhoneのキャッシュ・固まり対策）
+# --------------------------------------------------
 today_date = datetime.date.today()
 
-if "record_date_val" not in st.session_state:
+# 最後に記録・確認した「システム上の今日の日付」を追跡
+if "last_system_date" not in st.session_state:
+    st.session_state["last_system_date"] = today_date
+    st.session_state["record_date_val"] = today_date
+
+# 日を跨いでアプリを再開した、または以前のセッションが残っていた場合に最新化
+if st.session_state["last_system_date"] != today_date:
+    st.session_state["last_system_date"] = today_date
     st.session_state["record_date_val"] = today_date
 
 if "input_hour" not in st.session_state:
@@ -337,6 +346,7 @@ def render_input_form():
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
+    # st.date_input に value を持たせず key のみでコントロール
     st.date_input(
         "日付を選択",
         format="YYYY/MM/DD",
@@ -392,7 +402,7 @@ render_input_form()
 # --------------------------------------------------
 # 4. 当日のサマリー・グラフ・タイムライン
 # --------------------------------------------------
-selected_date = st.session_state["record_date_val"]
+selected_date = st.session_state.get("record_date_val", today_date)
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
 date_str = selected_date.strftime("%Y-%m-%d")
 
@@ -519,11 +529,14 @@ def render_calendar_section():
     c_col1, c_col2 = st.columns(2)
     current_year = today_date.year
 
+    years_options = list(range(current_year - 2, current_year + 2))
+    year_index = years_options.index(selected_date.year) if selected_date.year in years_options else years_options.index(current_year)
+
     with c_col1:
         sel_year = st.selectbox(
             "年",
-            options=list(range(current_year - 2, current_year + 2)),
-            index=list(range(current_year - 2, current_year + 2)).index(selected_date.year),
+            options=years_options,
+            index=year_index,
             key="cal_year_select"
         )
 
