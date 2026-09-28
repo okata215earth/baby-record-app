@@ -375,7 +375,24 @@ st.markdown('</div>', unsafe_allow_html=True)
 # --------------------------------------------------
 # 4. 選択日付のサマリー・グラフ・タイムライン
 # --------------------------------------------------
-selected_date = st.session_state.get("record_date_val", today_date)
+# 日付選択のキーを管理
+if "record_date_val" not in st.session_state:
+    st.session_state["record_date_val"] = datetime.date.today()
+
+# 日付選択フォーム
+selected_date = st.date_input(
+    "日付を選択",
+    value=st.session_state["record_date_val"],
+    format="YYYY/MM/DD",
+    key="date_picker_widget" # 固定キーではなく内部値で管理
+)
+
+# 選択された日付が更新されたらセッションに保存して即座に画面反映
+if selected_date != st.session_state["record_date_val"]:
+    st.session_state["record_date_val"] = selected_date
+    st.rerun()
+
+#selected_date = st.session_state.get("record_date_val", today_date)
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
 date_str = selected_date.strftime("%Y-%m-%d")
 
