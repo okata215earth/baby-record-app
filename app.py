@@ -527,14 +527,14 @@ for week in cal:
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
             poop_icon = "💩" if has_poop else ""
 
-            # 修正後（<br>を入れてミルク量とうんちアイコンを改行表示）
+            # 変更後（うんちがない日も透明なダミー行を入れて高さを統一）
             if milk_val > 0:
-                poop_br = f"<br>{poop_icon}" if has_poop else ""
-                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span>{poop_br}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+                poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
             elif has_poop:
-                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
             else:
-                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
 
             cal_html += f'<div class="cal-day-cell" style="{bg_style}">{inner_content}</div>'
 
