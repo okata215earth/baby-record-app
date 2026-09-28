@@ -18,7 +18,24 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# カスタムCSS
+# iPhoneのバックグラウンド復帰時・再起動時の日付強制同期処理
+# --------------------------------------------------
+today_date = datetime.date.today()
+
+# 起動時・復帰時に常に今日の日付を強制セットする処理
+if "record_date_val" not in st.session_state:
+    st.session_state["record_date_val"] = today_date
+else:
+    # セッション内の日付が「今日」と異なり、かつユーザーが手動で過去日付を選んだ形跡がない場合は今日に戻す
+    if "last_checked_today" not in st.session_state:
+        st.session_state["last_checked_today"] = today_date
+        st.session_state["record_date_val"] = today_date
+    elif st.session_state["last_checked_today"] != today_date:
+        st.session_state["last_checked_today"] = today_date
+        st.session_state["record_date_val"] = today_date
+
+# --------------------------------------------------
+# カスタムCSS & JavaScript (iPhoneの画面フォーカス時に自動更新)
 # --------------------------------------------------
 st.markdown("""
 <style>
@@ -209,7 +226,7 @@ def get_worksheet():
     return sh.sheet1
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)  # キャッシュ保持時間を短く設定
 def load_data():
     try:
         ws = get_worksheet()
@@ -226,7 +243,6 @@ def load_data():
 
 
 def append_row_async(new_row):
-    """通信待ちをなくす非同期保存関数"""
     try:
         ws = get_worksheet()
         ws.append_row([
@@ -254,20 +270,16 @@ def delete_row_async(date_val, time_str_val):
 
 
 def add_record_fast(new_row):
-    """メモリ上のDataFrameを即時更新して裏でスプレッドシート保存"""
     current_df = st.session_state.get("cached_df", load_data())
     new_df = pd.DataFrame([new_row])
     updated_df = pd.concat([current_df, new_df], ignore_index=True)
-    
     st.session_state["cached_df"] = updated_df
     threading.Thread(target=append_row_async, args=(new_row,)).start()
 
 
 def delete_record_fast(date_val, time_str_val):
-    """メモリ上のDataFrameから即時削除して裏でスプレッドシート削除"""
     current_df = st.session_state.get("cached_df", load_data())
     updated_df = current_df[~((current_df["date"] == str(date_val)) & (current_df["time_str"] == str(time_str_val)))].reset_index(drop=True)
-    
     st.session_state["cached_df"] = updated_df
     threading.Thread(target=delete_row_async, args=(date_val, time_str_val)).start()
 
@@ -284,7 +296,7 @@ def reset_input_fields():
 
 
 def save_and_reset_callback():
-    sel_date = st.session_state.get("record_date_val", datetime.date.today())
+    sel_date = st.session_state.get("record_date_val", today_date)
     date_str_val = sel_date.strftime("%Y-%m-%d")
     time_str = f"{int(st.session_state['input_hour']):02d}:{int(st.session_state['input_minute']):02d}"
 
@@ -302,21 +314,6 @@ def save_and_reset_callback():
     st.session_state["save_toast_msg"] = f"{time_str} の記録を保存しました 💕"
 
 
-# --------------------------------------------------
-# 日付の自動チェック＆同期処理（iPhoneのキャッシュ・固まり対策）
-# --------------------------------------------------
-today_date = datetime.date.today()
-
-# 最後に記録・確認した「システム上の今日の日付」を追跡
-if "last_system_date" not in st.session_state:
-    st.session_state["last_system_date"] = today_date
-    st.session_state["record_date_val"] = today_date
-
-# 日を跨いでアプリを再開した、または以前のセッションが残っていた場合に最新化
-if st.session_state["last_system_date"] != today_date:
-    st.session_state["last_system_date"] = today_date
-    st.session_state["record_date_val"] = today_date
-
 if "input_hour" not in st.session_state:
     st.session_state["input_hour"] = 0
 if "input_minute" not in st.session_state:
@@ -328,7 +325,6 @@ if "input_poop_size" not in st.session_state:
 if "input_memo" not in st.session_state:
     st.session_state["input_memo"] = ""
 
-# キャッシュ済み DataFrame の参照
 if "cached_df" not in st.session_state:
     st.session_state["cached_df"] = load_data()
 
@@ -336,7 +332,7 @@ df = st.session_state["cached_df"]
 
 
 # --------------------------------------------------
-# 3. 入力エリア（@st.fragment で部分再描画）
+# 3. 入力エリア（今日の日付にリセットするボタンを追加）
 # --------------------------------------------------
 @st.fragment
 def render_input_form():
@@ -346,13 +342,20 @@ def render_input_form():
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-    # st.date_input に value を持たせず key のみでコントロール
-    st.date_input(
-        "日付を選択",
-        format="YYYY/MM/DD",
-        on_change=reset_input_fields,
-        key="record_date_val"
-    )
+    col_d1, col_d2 = st.columns([7, 3])
+    with col_d1:
+        st.date_input(
+            "日付を選択",
+            format="YYYY/MM/DD",
+            on_change=reset_input_fields,
+            key="record_date_val"
+        )
+    with col_d2:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        # 万が一過去の日付のまま固まった場合に1タップで「今日」にする非常用ボタン
+        if st.button("今日にする", key="btn_set_today"):
+            st.session_state["record_date_val"] = datetime.date.today()
+            st.rerun()
 
     col1, col2 = st.columns(2)
 
@@ -525,7 +528,6 @@ def render_calendar_section():
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📅 ミルクカレンダー</div>', unsafe_allow_html=True)
 
-    # 年月選択セレクトボックス
     c_col1, c_col2 = st.columns(2)
     current_year = today_date.year
 
