@@ -111,18 +111,19 @@ st.markdown("""
         padding: 4px 0;
     }
     .cal-day-cell {
-        background-color: #FFFFFF;
-        border: 1px solid #FFE1E8;
-        border-radius: 8px;
-        padding: 3px 1px;
-        text-align: center;
-        min-height: 68px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: center;
-        box-sizing: border-box;
-    }
+            background-color: #FFFFFF;
+            border: 1px solid #FFE1E8;
+            border-radius: 8px;
+            padding: 3px 0px 0px 0px; /* 左右と下の余白を0にして棒グラフを端まで広げる */
+            text-align: center;
+            min-height: 68px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+            overflow: hidden; /* 角丸からはみ出るのを防止 */
+        }
     .cal-day-cell-empty {
         background-color: #FAF8F8;
         border: 1px solid #F2EDED;
@@ -244,7 +245,7 @@ def delete_record_row(date_val, time_str_val):
             break
 
 # --------------------------------------------------
-# 入力リセットコールバック＆初期値設定
+# 入力リセット処理＆初期値設定
 # --------------------------------------------------
 def reset_input_fields():
     st.session_state["input_hour"] = 0
@@ -253,6 +254,23 @@ def reset_input_fields():
     st.session_state["input_poop_size"] = "なし"
     st.session_state["input_memo"] = ""
 
+# 保存ボタンが押された時のコールバック関数
+def save_record_callback(date_str):
+    time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
+    new_data = {
+        "date": date_str,
+        "hour": st.session_state["input_hour"],
+        "time_str": time_str,
+        "milk_ml": st.session_state["input_milk_ml"],
+        "poop_size": st.session_state["input_poop_size"],
+        "memo": st.session_state["input_memo"],
+    }
+    add_record(new_data)
+    # ボタンクリック時（Widget描画前）にリセットを実行
+    reset_input_fields()
+    st.toast(f"{time_str} の記録を保存しました 💕")
+
+# セッション状態の初回初期化
 if "input_hour" not in st.session_state:
     st.session_state["input_hour"] = 0
 if "input_minute" not in st.session_state:
@@ -304,7 +322,6 @@ with col1:
         format_func=lambda x: f"{x:02d}分",
         key="input_minute"
     )
-    time_str = f"{hour:02d}:{minute:02d}"
 
 with col2:
     milk_ml = st.number_input(
@@ -327,19 +344,12 @@ memo = st.text_input(
     key="input_memo"
 )
 
-if st.button("🌸 記録を保存する"):
-    new_data = {
-        "date": date_str,
-        "hour": hour,
-        "time_str": time_str,
-        "milk_ml": milk_ml,
-        "poop_size": poop_size,
-        "memo": memo,
-    }
-    add_record(new_data)
-    reset_input_fields()
-    st.toast(f"{time_str} の記録を保存しました 💕")
-    st.rerun()
+# ボタンの on_click コールバックを利用することで Widget 描画前に安全にリセットされます
+st.button(
+    "🌸 記録を保存する",
+    on_click=save_record_callback,
+    args=(date_str,)
+)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
