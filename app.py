@@ -189,7 +189,7 @@ st.markdown("""
 
 
 # --------------------------------------------------
-# 2. Googleスプレッドシート接続＆高速データキャッシュ処理
+# 2. Googleスプレッドシート接続＆データ操作処理
 # --------------------------------------------------
 @st.cache_resource
 def get_gspread_client():
@@ -209,8 +209,7 @@ def get_worksheet():
     return sh.sheet1
 
 
-# 長期キャッシュ（有効期限5分）。保存や削除のたびに全取得し直さない
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def load_data():
     try:
         ws = get_worksheet()
@@ -227,7 +226,7 @@ def load_data():
 
 
 def append_row_async(new_row):
-    """通信待ちをなくすバックグラウンド保存処理"""
+    """通信待ちをなくす非同期保存関数"""
     try:
         ws = get_worksheet()
         ws.append_row([
@@ -242,44 +241,19 @@ def append_row_async(new_row):
         print(f"非同期書き込みエラー: {e}")
 
 
-def delete_row_async(date_val, time_str_val):
-    """通信待ちをなくすバックグラウンド削除処理"""
-    try:
-        ws = get_worksheet()
-        records = ws.get_all_records()
-        for idx, row in enumerate(records, start=2):
-            if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
-                ws.delete_rows(idx)
-                break
-    except Exception as e:
-        print(f"非同期削除エラー: {e}")
-
-
-def add_record_fast(new_row):
-    """キャッシュを即時手元更新して非同期でスプレッドシートへ書き込み"""
-    df = load_data()
-    new_df = pd.DataFrame([new_row])
-    updated_df = pd.concat([df, new_df], ignore_index=True)
-    
-    # キャッシュを直接上書き更新（スプレッドシートの再読み込みを発生させない）
-    load_data.clear()
-    st.session_state["cached_df"] = updated_df
-    
-    # バックグラウンドで書き込み実行
+def add_record(new_row):
     threading.Thread(target=append_row_async, args=(new_row,)).start()
+    st.cache_data.clear()
 
 
-def delete_record_fast(date_val, time_str_val):
-    """キャッシュから対象行を即時除外して非同期でスプレッドシート削除"""
-    df = load_data()
-    updated_df = df[~((df["date"] == str(date_val)) & (df["time_str"] == str(time_str_val)))].reset_index(drop=True)
-    
-    # キャッシュを直接上書き更新
-    load_data.clear()
-    st.session_state["cached_df"] = updated_df
-    
-    # バックグラウンドで削除実行
-    threading.Thread(target=delete_row_async, args=(date_val, time_str_val)).start()
+def delete_record_row(date_val, time_str_val):
+    ws = get_worksheet()
+    records = ws.get_all_records()
+    for idx, row in enumerate(records, start=2):
+        if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
+            ws.delete_rows(idx)
+            st.cache_data.clear()
+            break
 
 
 # --------------------------------------------------
@@ -300,14 +274,14 @@ def save_record_callback():
 
     new_data = {
         "date": date_str_val,
-        "hour": int(st.session_state["input_hour"]),
+        "hour": st.session_state["input_hour"],
         "time_str": time_str,
-        "milk_ml": int(st.session_state["input_milk_ml"]),
+        "milk_ml": st.session_state["input_milk_ml"],
         "poop_size": st.session_state["input_poop_size"],
         "memo": st.session_state["input_memo"],
     }
 
-    add_record_fast(new_data)
+    add_record(new_data)
     reset_input_fields()
     st.toast(f"{time_str} の記録を保存しました 💕")
 
@@ -329,12 +303,7 @@ if "input_poop_size" not in st.session_state:
 if "input_memo" not in st.session_state:
     st.session_state["input_memo"] = ""
 
-# キャッシュ済み DataFrame の参照と同期
-if "cached_df" in st.session_state:
-    df = st.session_state["cached_df"]
-else:
-    df = load_data()
-    st.session_state["cached_df"] = df
+df = load_data()
 
 
 # --------------------------------------------------
@@ -499,7 +468,7 @@ if not day_data.empty:
         with col_btn:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             if st.button("🗑️", key=f"del_{idx}"):
-                delete_record_fast(row["date"], row["time_str"])
+                delete_record_row(row["date"], row["time_str"])
                 st.toast(f"{row['time_str']} の記録を削除しました")
                 st.rerun()
 
@@ -560,6 +529,8 @@ for week in cal:
             cal_html += '<div class="cal-day-cell-empty"></div>'
         else:
             d_str = f"{year}-{month:02d}-{day:02d}"
+            
+            # 各日のミルク量とうんちフラグを取得（NameErrorを防ぐ正しい定義位置）
             milk_val = daily_milk.get(d_str, 0)
             has_poop = d_str in poop_dates
 
@@ -569,6 +540,7 @@ for week in cal:
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
             poop_icon = "💩"
 
+            # 位置統一（うんちが無くても透明ダミーを表示）
             if milk_val > 0:
                 poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
                 inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
