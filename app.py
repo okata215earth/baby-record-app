@@ -187,22 +187,19 @@ st.markdown("""
 # --------------------------------------------------
 # 2. Googleスプレッドシート接続処理
 # --------------------------------------------------
-import json
-
 @st.cache_resource
 def get_gspread_client():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    # secretsのjson_textキーから取得した文字列をJSONとして解析
     info = json.loads(st.secrets["gcp_service_account"]["json_text"])
     credentials = Credentials.from_service_account_info(
         info,
         scopes=scopes
     )
     return gspread.authorize(credentials)
-
+    
 
 def get_worksheet():
     gc = get_gspread_client()
@@ -210,6 +207,7 @@ def get_worksheet():
     sh = gc.open(spreadsheet_name)
     return sh.sheet1
 
+@st.cache_data(ttl=60)
 def load_data():
     try:
         ws = get_worksheet()
@@ -234,6 +232,7 @@ def add_record(new_row):
         new_row["poop_size"],
         new_row["memo"]
     ])
+    st.cache_data.clear()
 
 def delete_record_row(date_val, time_str_val):
     ws = get_worksheet()
@@ -241,7 +240,29 @@ def delete_record_row(date_val, time_str_val):
     for idx, row in enumerate(records, start=2): # 1行目はヘッダー
         if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
             ws.delete_rows(idx)
+            st.cache_data.clear()
             break
+
+# --------------------------------------------------
+# 入力リセットコールバック＆初期値設定
+# --------------------------------------------------
+def reset_input_fields():
+    st.session_state["input_hour"] = 0
+    st.session_state["input_minute"] = 0
+    st.session_state["input_milk_ml"] = 0
+    st.session_state["input_poop_size"] = "なし"
+    st.session_state["input_memo"] = ""
+
+if "input_hour" not in st.session_state:
+    st.session_state["input_hour"] = 0
+if "input_minute" not in st.session_state:
+    st.session_state["input_minute"] = 0
+if "input_milk_ml" not in st.session_state:
+    st.session_state["input_milk_ml"] = 0
+if "input_poop_size" not in st.session_state:
+    st.session_state["input_poop_size"] = "なし"
+if "input_memo" not in st.session_state:
+    st.session_state["input_memo"] = ""
 
 df = load_data()
 
@@ -252,7 +273,15 @@ st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
 today_date = datetime.date.today()
-selected_date = st.date_input("日付を選択", value=today_date, format="YYYY/MM/DD")
+
+# 日付選択（日付を変更した瞬間に reset_input_fields が実行されます）
+selected_date = st.date_input(
+    "日付を選択",
+    value=today_date,
+    format="YYYY/MM/DD",
+    on_change=reset_input_fields,
+    key="selected_date"
+)
 
 weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
 wd_str = weekdays_jp[selected_date.weekday()]
@@ -260,34 +289,57 @@ formatted_short_date = f"{selected_date.month}/{selected_date.day}({wd_str})"
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
 date_str = selected_date.strftime("%Y-%m-%d")
 
-with st.form("record_form", clear_on_submit=False):
-    col1, col2 = st.columns(2)
+col1, col2 = st.columns(2)
 
-    with col1:
-        hour = st.selectbox("時間帯", options=list(range(24)), format_func=lambda x: f"{x}時")
-        minute = st.selectbox("分", options=list(range(0, 60, 5)), format_func=lambda x: f"{x:02d}分")
-        time_str = f"{hour:02d}:{minute:02d}"
+with col1:
+    hour = st.selectbox(
+        "時間帯",
+        options=list(range(24)),
+        format_func=lambda x: f"{x}時",
+        key="input_hour"
+    )
+    minute = st.selectbox(
+        "分",
+        options=list(range(0, 60, 5)),
+        format_func=lambda x: f"{x:02d}分",
+        key="input_minute"
+    )
+    time_str = f"{hour:02d}:{minute:02d}"
 
-    with col2:
-        milk_ml = st.number_input("🍼 ミルクの量 (ml)", min_value=0, max_value=300, step=10, value=0)
-        poop_size = st.radio("💩 うんちの量", options=["なし", "小", "中", "大"], horizontal=True)
+with col2:
+    milk_ml = st.number_input(
+        "🍼 ミルクの量 (ml)",
+        min_value=0,
+        max_value=300,
+        step=10,
+        key="input_milk_ml"
+    )
+    poop_size = st.radio(
+        "💩 うんちの量",
+        options=["なし", "小", "中", "大"],
+        horizontal=True,
+        key="input_poop_size"
+    )
 
-    memo = st.text_input("💬 メモ・ごきげん", placeholder="例：機嫌よくたくさん飲んだ！")
+memo = st.text_input(
+    "💬 メモ・ごきげん",
+    placeholder="例：機嫌よくたくさん飲んだ！",
+    key="input_memo"
+)
 
-    submitted = st.form_submit_button("🌸 記録を保存する")
-
-    if submitted:
-        new_data = {
-            "date": date_str,
-            "hour": hour,
-            "time_str": time_str,
-            "milk_ml": milk_ml,
-            "poop_size": poop_size,
-            "memo": memo,
-        }
-        add_record(new_data)
-        st.toast(f"{time_str} の記録を保存しました 💕")
-        st.rerun()
+if st.button("🌸 記録を保存する"):
+    new_data = {
+        "date": date_str,
+        "hour": hour,
+        "time_str": time_str,
+        "milk_ml": milk_ml,
+        "poop_size": poop_size,
+        "memo": memo,
+    }
+    add_record(new_data)
+    reset_input_fields()
+    st.toast(f"{time_str} の記録を保存しました 💕")
+    st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
 
