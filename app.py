@@ -137,7 +137,7 @@ st.markdown("""
         line-height: 1.0;
     }
     .cal-milk-val {
-        font-size: 0.75rem; /* 0.55rem から 0.75rem に拡大 */
+        font-size: 0.65rem; /* 0.55rem から 0.65rem に拡大 */
         font-weight: bold;
         color: #FF5A79;
         margin-top: 1px;
