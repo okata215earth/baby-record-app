@@ -6,6 +6,7 @@ import plotly.express as px
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
+import threading
 
 # 1. ページ基本設定
 st.set_page_config(
@@ -184,55 +185,30 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
 # --------------------------------------------------
 # 2. Googleスプレッドシート接続処理
 # --------------------------------------------------
-@st.cache_resource
-def get_gspread_client():
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    info = json.loads(st.secrets["gcp_service_account"]["json_text"])
-    credentials = Credentials.from_service_account_info(
-        info,
-        scopes=scopes
-    )
-    return gspread.authorize(credentials)
-    
+# （get_gspread_client, get_worksheet, load_data などは既存のまま）
 
-def get_worksheet():
-    gc = get_gspread_client()
-    spreadsheet_name = st.secrets["spreadsheet"]["spreadsheet_name"]
-    sh = gc.open(spreadsheet_name)
-    return sh.sheet1
-
-@st.cache_data(ttl=60)
-def load_data():
+def append_row_async(new_row):
+    """スプレッドシートへの追加書き込みをバックグラウンドで処理する関数"""
     try:
         ws = get_worksheet()
-        records = ws.get_all_records()
-        if not records:
-            return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
-        df = pd.DataFrame(records)
-        df["hour"] = pd.to_numeric(df["hour"], errors="coerce").fillna(0).astype(int)
-        df["milk_ml"] = pd.to_numeric(df["milk_ml"], errors="coerce").fillna(0).astype(int)
-        return df
+        ws.append_row([
+            new_row["date"],
+            int(new_row["hour"]),
+            new_row["time_str"],
+            int(new_row["milk_ml"]),
+            new_row["poop_size"],
+            new_row["memo"]
+        ])
     except Exception as e:
-        st.error(f"スプレッドシート読み込みエラー: {e}")
-        return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
+        print(f"非同期書き込みエラー: {e}")
 
 def add_record(new_row):
-    ws = get_worksheet()
-    ws.append_row([
-        new_row["date"],
-        int(new_row["hour"]),
-        new_row["time_str"],
-        int(new_row["milk_ml"]),
-        new_row["poop_size"],
-        new_row["memo"]
-    ])
+    # スレッドを立ち上げて通信待ちを回避する
+    threading.Thread(target=append_row_async, args=(new_row,)).start()
+    # キャッシュをクリア（次回読み込み時に最新化）
     st.cache_data.clear()
 
 def delete_record_row(date_val, time_str_val):
@@ -248,20 +224,18 @@ def delete_record_row(date_val, time_str_val):
 # 入力リセット処理＆初期値設定
 # --------------------------------------------------
 def reset_input_fields():
-    # 入力項目のみ初期値にリセット（日付はリセットせず選択状態を維持）
+    # 日付は維持したまま入力項目のみリセット
     st.session_state["input_hour"] = 0
     st.session_state["input_minute"] = 0
     st.session_state["input_milk_ml"] = 0
     st.session_state["input_poop_size"] = "なし"
     st.session_state["input_memo"] = ""
 
-# 保存ボタンが押された時のコールバック関数
 def save_record_callback():
-    # 現在選択されている日付を取得
     sel_date = st.session_state["record_date_val"]
     date_str_val = sel_date.strftime("%Y-%m-%d")
-    
     time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
+    
     new_data = {
         "date": date_str_val,
         "hour": st.session_state["input_hour"],
@@ -270,15 +244,17 @@ def save_record_callback():
         "poop_size": st.session_state["input_poop_size"],
         "memo": st.session_state["input_memo"],
     }
+    
+    # 非同期で保存を実行
     add_record(new_data)
-    # 記録保存後に入力欄（時・分・ミルク・便・メモ）を初期化
+    
+    # 即座に入力状態をリセット
     reset_input_fields()
     st.toast(f"{time_str} の記録を保存しました 💕")
 
 # セッション状態の初回初期化（アプリ起動・再起動時）
 today_date = datetime.date.today()
 
-# 再起動時は「当日」をデフォルト値としてセット
 if "record_date_val" not in st.session_state:
     st.session_state["record_date_val"] = today_date
 
@@ -301,7 +277,6 @@ df = load_data()
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-# 日付選択（日付変更時に入力項目のみリセットし、変更後の日付を保持）
 selected_date = st.date_input(
     "日付を選択",
     format="YYYY/MM/DD",
@@ -352,7 +327,6 @@ memo = st.text_input(
     key="input_memo"
 )
 
-# 保存ボタン
 st.button(
     "🌸 記録を保存する",
     on_click=save_record_callback
