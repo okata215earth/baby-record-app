@@ -302,9 +302,10 @@ def save_and_reset_callback():
     st.session_state["save_toast_msg"] = f"{time_str} の記録を保存しました 💕"
 
 
-# 常に「最新の今日の日付」を取得して保持
+# 常に「最新の今日の日付」を取得
 today_date = datetime.date.today()
 
+# record_date_val が存在しない場合のみ初期化
 if "record_date_val" not in st.session_state:
     st.session_state["record_date_val"] = today_date
 
@@ -337,10 +338,9 @@ def render_input_form():
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-    # value を明確に指定し、初期値・再読み込み時の日付ズレを防ぐ
+    # value を削除し、Session State のみの管理にしてエラーを回避
     st.date_input(
         "日付を選択",
-        value=st.session_state.get("record_date_val", today_date),
         format="YYYY/MM/DD",
         on_change=reset_input_fields,
         key="record_date_val"
