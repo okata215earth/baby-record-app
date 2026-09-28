@@ -21,9 +21,9 @@ st.set_page_config(
 # --------------------------------------------------
 today_date = datetime.date.today()
 
-# 起動時または日を跨いで再読み込みされた場合、常に今日の日付をセット
-if "last_checked_today" not in st.session_state or st.session_state["last_checked_today"] != today_date:
-    st.session_state["last_checked_today"] = today_date
+# セッション状態の初期化および再起動時の「本日の日付」セット
+if "initialized" not in st.session_state:
+    st.session_state["initialized"] = True
     st.session_state["record_date_val"] = today_date
 
 # --------------------------------------------------
@@ -318,8 +318,12 @@ def render_input_form():
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
+    # ユーザーが変更した値を session_state["record_date_val"] に保持し、初期値(value)として渡す
+    current_selected_date = st.session_state.get("record_date_val", today_date)
+    
     st.date_input(
         "日付を選択",
+        value=current_selected_date,
         format="YYYY/MM/DD",
         on_change=reset_input_fields,
         key="record_date_val"
