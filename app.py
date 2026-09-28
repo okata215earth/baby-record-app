@@ -1,7 +1,6 @@
 import calendar
 import datetime
 import json
-import threading
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -22,11 +21,9 @@ st.set_page_config(
 # --------------------------------------------------
 today_date = datetime.date.today()
 
-# 起動時・復帰時に常に今日の日付を強制セットする処理
 if "record_date_val" not in st.session_state:
     st.session_state["record_date_val"] = today_date
 else:
-    # セッション内の日付が「今日」と異なり、かつユーザーが手動で過去日付を選んだ形跡がない場合は今日に戻す
     if "last_checked_today" not in st.session_state:
         st.session_state["last_checked_today"] = today_date
         st.session_state["record_date_val"] = today_date
@@ -35,7 +32,7 @@ else:
         st.session_state["record_date_val"] = today_date
 
 # --------------------------------------------------
-# カスタムCSS & JavaScript (iPhoneの画面フォーカス時に自動更新)
+# カスタムCSS
 # --------------------------------------------------
 st.markdown("""
 <style>
@@ -226,7 +223,7 @@ def get_worksheet():
     return sh.sheet1
 
 
-@st.cache_data(ttl=60)  # キャッシュ保持時間を短く設定
+@st.cache_data(ttl=60)
 def load_data():
     try:
         ws = get_worksheet()
@@ -242,7 +239,7 @@ def load_data():
         return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
 
 
-def append_row_async(new_row):
+def append_row(new_row):
     try:
         ws = get_worksheet()
         ws.append_row([
@@ -253,35 +250,22 @@ def append_row_async(new_row):
             new_row["poop_size"],
             new_row["memo"]
         ])
+        st.cache_data.clear()
     except Exception as e:
-        print(f"非同期書き込みエラー: {e}")
+        st.error(f"書き込みエラー: {e}")
 
 
-def delete_row_async(date_val, time_str_val):
+def delete_row(date_val, time_str_val):
     try:
         ws = get_worksheet()
         records = ws.get_all_records()
         for idx, row in enumerate(records, start=2):
             if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
                 ws.delete_rows(idx)
+                st.cache_data.clear()
                 break
     except Exception as e:
-        print(f"非同期削除エラー: {e}")
-
-
-def add_record_fast(new_row):
-    current_df = st.session_state.get("cached_df", load_data())
-    new_df = pd.DataFrame([new_row])
-    updated_df = pd.concat([current_df, new_df], ignore_index=True)
-    st.session_state["cached_df"] = updated_df
-    threading.Thread(target=append_row_async, args=(new_row,)).start()
-
-
-def delete_record_fast(date_val, time_str_val):
-    current_df = st.session_state.get("cached_df", load_data())
-    updated_df = current_df[~((current_df["date"] == str(date_val)) & (current_df["time_str"] == str(time_str_val)))].reset_index(drop=True)
-    st.session_state["cached_df"] = updated_df
-    threading.Thread(target=delete_row_async, args=(date_val, time_str_val)).start()
+        st.error(f"削除エラー: {e}")
 
 
 # --------------------------------------------------
@@ -309,7 +293,7 @@ def save_and_reset_callback():
         "memo": st.session_state["input_memo"],
     }
 
-    add_record_fast(new_data)
+    append_row(new_data)
     reset_input_fields()
     st.session_state["save_toast_msg"] = f"{time_str} の記録を保存しました 💕"
 
@@ -325,14 +309,11 @@ if "input_poop_size" not in st.session_state:
 if "input_memo" not in st.session_state:
     st.session_state["input_memo"] = ""
 
-if "cached_df" not in st.session_state:
-    st.session_state["cached_df"] = load_data()
-
-df = st.session_state["cached_df"]
+df = load_data()
 
 
 # --------------------------------------------------
-# 3. 入力エリア（今日の日付にリセットするボタンを追加）
+# 3. 入力エリア
 # --------------------------------------------------
 @st.fragment
 def render_input_form():
@@ -352,7 +333,6 @@ def render_input_form():
         )
     with col_d2:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-        # 万が一過去の日付のまま固まった場合に1タップで「今日」にする非常用ボタン
         if st.button("今日にする", key="btn_set_today"):
             st.session_state["record_date_val"] = datetime.date.today()
             st.rerun()
@@ -504,7 +484,7 @@ if not day_data.empty:
         with col_btn:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             if st.button("🗑️", key=f"del_{idx}"):
-                delete_record_fast(row["date"], row["time_str"])
+                delete_row(row["date"], row["time_str"])
                 st.toast(f"{row['time_str']} の記録を削除しました")
                 st.rerun()
 
@@ -551,10 +531,8 @@ def render_calendar_section():
             key="cal_month_select"
         )
 
-    current_df = st.session_state.get("cached_df", df)
-
-    if not current_df.empty:
-        temp_df = current_df.copy()
+    if not df.empty:
+        temp_df = df.copy()
         temp_df["date_dt"] = pd.to_datetime(temp_df["date"], errors="coerce")
         monthly_df = temp_df[(temp_df["date_dt"].dt.year == sel_year) & (temp_df["date_dt"].dt.month == sel_month)]
         daily_milk = monthly_df.groupby("date")["milk_ml"].sum().to_dict()
