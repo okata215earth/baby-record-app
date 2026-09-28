@@ -137,11 +137,11 @@ st.markdown("""
         line-height: 1.0;
     }
     .cal-milk-val {
-        font-size: 0.75rem; /* 数値部分を大きく読みやすく */
+        font-size: 0.75rem;
         font-weight: bold;
         color: #FF5A79;
         margin-top: 1px;
-        line-height: 1.1;
+        line-height: 1.0; /* 行間を小さくしてコンパクトにする */
     }
     .cal-bar-container {
         background-color: #FFEBF0;
@@ -527,12 +527,12 @@ for week in cal:
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
             poop_icon = "💩" if has_poop else ""
 
+            # 修正後（<br>を入れてミルク量とうんちアイコンを改行表示）
             if milk_val > 0:
-                #inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}m {poop_icon}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
-                # 修正後（ml 表記に変更し、単位を少し小さく整えて見やすく表示）
-                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span> {poop_icon}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+                poop_br = f"<br>{poop_icon}" if has_poop else ""
+                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span>{poop_br}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
             elif has_poop:
-                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.6rem;'>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
             else:
                 inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
 
