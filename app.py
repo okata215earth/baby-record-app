@@ -16,15 +16,6 @@ st.set_page_config(
     layout="centered"
 )
 
-today_date = datetime.date.today()
-
-# --------------------------------------------------
-# iOSの復元対策：初回アクセス・アプリ起動時は必ず「本日」をセット
-# --------------------------------------------------
-if "app_initialized" not in st.session_state:
-    st.session_state["app_initialized"] = True
-    st.session_state["record_date_val"] = today_date
-
 # --------------------------------------------------
 # カスタムCSS
 # --------------------------------------------------
@@ -263,7 +254,7 @@ def delete_row(date_val, time_str_val):
 
 
 # --------------------------------------------------
-# 入力リセット処理＆日付変更コールバック
+# 入力リセット処理＆コールバック
 # --------------------------------------------------
 def reset_input_fields():
     st.session_state["input_hour"] = 0
@@ -278,7 +269,7 @@ def on_date_change():
 
 
 def save_and_reset_callback():
-    sel_date = st.session_state.get("record_date_val", today_date)
+    sel_date = st.session_state.get("record_date_val", datetime.date.today())
     date_str_val = sel_date.strftime("%Y-%m-%d")
     time_str = f"{int(st.session_state['input_hour']):02d}:{int(st.session_state['input_minute']):02d}"
 
@@ -319,9 +310,10 @@ if "save_toast_msg" in st.session_state:
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-# key="record_date_val" を設定することで、Session State と自動同期されます（エラー回避）
-st.date_input(
+# value に直接 datetime.date.today() をセットすることでアクセスタイミングの「今日」を常にセット
+selected_date = st.date_input(
     "日付を選択",
+    value=datetime.date.today(),
     format="YYYY/MM/DD",
     on_change=on_date_change,
     key="record_date_val"
@@ -373,7 +365,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 # --------------------------------------------------
 # 4. 選択日付のサマリー・グラフ・タイムライン
 # --------------------------------------------------
-selected_date = st.session_state.get("record_date_val", today_date)
 date_display = f"{selected_date.year}年{selected_date.month}月{selected_date.day}日"
 date_str = selected_date.strftime("%Y-%m-%d")
 
@@ -495,7 +486,8 @@ st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📅 ミルクカレンダー</div>', unsafe_allow_html=True)
 
 c_col1, c_col2 = st.columns(2)
-current_year = today_date.year
+today_ref = datetime.date.today()
+current_year = today_ref.year
 
 years_options = list(range(current_year - 2, current_year + 2))
 year_index = years_options.index(selected_date.year) if selected_date.year in years_options else years_options.index(current_year)
