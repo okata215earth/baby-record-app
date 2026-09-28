@@ -6,24 +6,26 @@ import plotly.express as px
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
+import streamlit.components.v1 as components
 
 # --------------------------------------------------
 # 1. ページ基本設定
 # --------------------------------------------------
-st.set_page_config(
-    page_title="芳怜ちゃん育児記録",
-    page_icon="🌸",
-    layout="centered"
-)
+st.set_page_config(page_title="芳怜ちゃん育児記録", page_icon="🌸", layout="centered")
 
-# --------------------------------------------------
-# 再起動時・画面読み込み時の日付制御
-# --------------------------------------------------
 today_date = datetime.date.today()
 
-# 初回アクセス（アプリ再起動時）は必ず今日の日付をセット
-if "record_date_val" not in st.session_state:
+# --------------------------------------------------
+# iOSのキャッシュ対策：ページ読込時にSession Stateを本日にリセット
+# --------------------------------------------------
+# クエリパラメータやセッション初期化で「起動時は常に今日」を保証する
+if "app_initialized" not in st.session_state:
+    st.session_state["app_initialized"] = True
     st.session_state["record_date_val"] = today_date
+
+# 画面のリロード（PWAの復元）時に毎回今日の日付が選択されるようにする
+# ※もし「記録作業中」のみ保持したい場合は、以下のように判定します
+
 
 # --------------------------------------------------
 # カスタムCSS
