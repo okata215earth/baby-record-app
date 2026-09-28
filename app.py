@@ -1,14 +1,16 @@
 import calendar
 import datetime
 import json
+import threading
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-import threading
 
+# --------------------------------------------------
 # 1. ページ基本設定
+# --------------------------------------------------
 st.set_page_config(
     page_title="芳怜ちゃん育児記録",
     page_icon="🌸",
@@ -142,7 +144,7 @@ st.markdown("""
         font-weight: bold;
         color: #FF5A79;
         margin-top: 1px;
-        line-height: 1.0; /* 行間を小さくしてコンパクトにする */
+        line-height: 1.0;
     }
     .cal-bar-container {
         background-color: #FFEBF0;
@@ -187,7 +189,7 @@ st.markdown("""
 
 
 # --------------------------------------------------
-# 2. Googleスプレッドシート接続処理
+# 2. Googleスプレッドシート接続＆データ操作処理
 # --------------------------------------------------
 @st.cache_resource
 def get_gspread_client():
@@ -196,18 +198,16 @@ def get_gspread_client():
         "https://www.googleapis.com/auth/drive"
     ]
     info = json.loads(st.secrets["gcp_service_account"]["json_text"])
-    credentials = Credentials.from_service_account_info(
-        info,
-        scopes=scopes
-    )
+    credentials = Credentials.from_service_account_info(info, scopes=scopes)
     return gspread.authorize(credentials)
-    
+
 
 def get_worksheet():
     gc = get_gspread_client()
     spreadsheet_name = st.secrets["spreadsheet"]["spreadsheet_name"]
     sh = gc.open(spreadsheet_name)
     return sh.sheet1
+
 
 @st.cache_data(ttl=60)
 def load_data():
@@ -224,8 +224,9 @@ def load_data():
         st.error(f"スプレッドシート読み込みエラー: {e}")
         return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
 
+
 def append_row_async(new_row):
-    """スプレッドシートへの追加書き込みをバックグラウンドで処理する関数"""
+    """通信待ちをなくす非同期保存関数"""
     try:
         ws = get_worksheet()
         ws.append_row([
@@ -239,37 +240,38 @@ def append_row_async(new_row):
     except Exception as e:
         print(f"非同期書き込みエラー: {e}")
 
+
 def add_record(new_row):
-    # スレッドを立ち上げて通信待ちを回避する
     threading.Thread(target=append_row_async, args=(new_row,)).start()
-    # キャッシュをクリア（次回読み込み時に最新化）
     st.cache_data.clear()
+
 
 def delete_record_row(date_val, time_str_val):
     ws = get_worksheet()
     records = ws.get_all_records()
-    for idx, row in enumerate(records, start=2): # 1行目はヘッダー
+    for idx, row in enumerate(records, start=2):
         if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
             ws.delete_rows(idx)
             st.cache_data.clear()
             break
 
+
 # --------------------------------------------------
 # 入力リセット処理＆初期値設定
 # --------------------------------------------------
 def reset_input_fields():
-    # 日付は維持したまま入力項目のみリセット
     st.session_state["input_hour"] = 0
     st.session_state["input_minute"] = 0
     st.session_state["input_milk_ml"] = 0
     st.session_state["input_poop_size"] = "なし"
     st.session_state["input_memo"] = ""
 
+
 def save_record_callback():
     sel_date = st.session_state["record_date_val"]
     date_str_val = sel_date.strftime("%Y-%m-%d")
     time_str = f"{st.session_state['input_hour']:02d}:{st.session_state['input_minute']:02d}"
-    
+
     new_data = {
         "date": date_str_val,
         "hour": st.session_state["input_hour"],
@@ -278,15 +280,13 @@ def save_record_callback():
         "poop_size": st.session_state["input_poop_size"],
         "memo": st.session_state["input_memo"],
     }
-    
-    # 非同期で保存を実行
+
     add_record(new_data)
-    
-    # 即座に入力状態をリセット
     reset_input_fields()
     st.toast(f"{time_str} の記録を保存しました 💕")
 
-# セッション状態の初回初期化（アプリ起動・再起動時）
+
+# アプリ起動・再起動時の初回初期化
 today_date = datetime.date.today()
 
 if "record_date_val" not in st.session_state:
@@ -304,6 +304,7 @@ if "input_memo" not in st.session_state:
     st.session_state["input_memo"] = ""
 
 df = load_data()
+
 
 # --------------------------------------------------
 # 3. 入力エリア
@@ -378,7 +379,6 @@ if not day_data.empty:
     total_milk = day_data["milk_ml"].sum()
     poop_count = len(day_data[day_data["poop_size"] != "なし"])
 
-    # サマリーカード
     m_col1, m_col2 = st.columns(2)
     with m_col1:
         st.markdown(f"""
@@ -398,9 +398,8 @@ if not day_data.empty:
         </div>
         """, unsafe_allow_html=True)
 
-    # 時間別グラフ
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-    st.markdown(f'<div class="luna-header">📊 きょうの時間別授乳グラフ ', unsafe_allow_html=True)
+    st.markdown('<div class="luna-header">📊 きょうの時間別授乳グラフ </div>', unsafe_allow_html=True)
 
     full_hours = pd.DataFrame({"hour": list(range(24))})
     hourly_summary = day_data.groupby("hour")["milk_ml"].sum().reset_index()
@@ -440,7 +439,6 @@ if not day_data.empty:
     st.plotly_chart(fig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # タイムラインカード
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">🕒 本日のタイムライン</div>', unsafe_allow_html=True)
 
@@ -485,6 +483,7 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
+
 # --------------------------------------------------
 # 5. カレンダー表示（日曜日始まり・7列固定グリッド）
 # --------------------------------------------------
@@ -508,32 +507,30 @@ else:
 
 max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.values()) > 0 else 800
 
-# ★ カレンダーを日曜日始まりに設定
 calendar.setfirstweekday(calendar.SUNDAY)
 cal = calendar.monthcalendar(year, month)
 
-# 日曜日始まりの曜日リスト
 weekdays = ["日", "月", "火", "水", "木", "金", "土"]
 
 cal_html = '<div class="cal-grid-container">'
 
-# 曜日ヘッダーの生成
 for wd in weekdays:
     if wd == "日":
-        color = "#FF5A79"  # 日曜日はピンク
+        color = "#FF5A79"
     elif wd == "土":
-        color = "#4A90E2"  # 土曜日はブルー（ピンクに統一する場合は #FF5A79）
+        color = "#4A90E2"
     else:
         color = "#554848"
     cal_html += f'<div class="cal-header-cell" style="color:{color};">{wd}</div>'
 
-# 各日付セルの生成
 for week in cal:
     for day in week:
         if day == 0:
             cal_html += '<div class="cal-day-cell-empty"></div>'
         else:
             d_str = f"{year}-{month:02d}-{day:02d}"
+            
+            # 各日のミルク量とうんちフラグを取得（NameErrorを防ぐ正しい定義位置）
             milk_val = daily_milk.get(d_str, 0)
             has_poop = d_str in poop_dates
 
@@ -541,16 +538,16 @@ for week in cal:
             is_today = (d_str == today_date.strftime("%Y-%m-%d"))
 
             bg_style = "background-color: #FFF0F3; border: 1.5px solid #FF5A79;" if is_today else ""
-            poop_icon = "💩" if has_poop else ""
+            poop_icon = "💩"
 
-        # 変更後（うんちがない日も透明なダミー行を入れて高さを統一）
-        if milk_val > 0:
-            poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
-            inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
-        elif has_poop:
-            inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
-        else:
-            inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+            # 位置統一（うんちが無くても透明ダミーを表示）
+            if milk_val > 0:
+                poop_html = f"{poop_icon}" if has_poop else "<span style='visibility:hidden;'>💩</span>"
+                inner_content = f"<div class='cal-day-num'>{day}</div><div class='cal-milk-val'>{milk_val}<span style='font-size:0.55rem;'>ml</span><br>{poop_html}</div><div class='cal-bar-container'><div class='cal-bar-fill' style='height: {bar_percent}%;'></div></div>"
+            elif has_poop:
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.7rem;'><br>{poop_icon}</div><div class='cal-bar-container' style='background-color:transparent;'></div>"
+            else:
+                inner_content = f"<div class='cal-day-num'>{day}</div><div style='font-size:0.55rem; color:#DDD;'>-<br><span style='visibility:hidden;'>💩</span></div><div class='cal-bar-container' style='background-color:transparent;'></div>"
 
             cal_html += f'<div class="cal-day-cell" style="{bg_style}">{inner_content}</div>'
 
