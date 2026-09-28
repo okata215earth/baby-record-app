@@ -17,19 +17,14 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# iPhoneのバックグラウンド復帰時・再起動時の日付強制同期処理
+# 再起動時・画面読み込み時に常に今日の日付を最新化
 # --------------------------------------------------
 today_date = datetime.date.today()
 
-if "record_date_val" not in st.session_state:
+# 起動時または日を跨いで再読み込みされた場合、常に今日の日付をセット
+if "last_checked_today" not in st.session_state or st.session_state["last_checked_today"] != today_date:
+    st.session_state["last_checked_today"] = today_date
     st.session_state["record_date_val"] = today_date
-else:
-    if "last_checked_today" not in st.session_state:
-        st.session_state["last_checked_today"] = today_date
-        st.session_state["record_date_val"] = today_date
-    elif st.session_state["last_checked_today"] != today_date:
-        st.session_state["last_checked_today"] = today_date
-        st.session_state["record_date_val"] = today_date
 
 # --------------------------------------------------
 # カスタムCSS
@@ -323,19 +318,12 @@ def render_input_form():
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
     st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-    col_d1, col_d2 = st.columns([7, 3])
-    with col_d1:
-        st.date_input(
-            "日付を選択",
-            format="YYYY/MM/DD",
-            on_change=reset_input_fields,
-            key="record_date_val"
-        )
-    with col_d2:
-        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-        if st.button("今日にする", key="btn_set_today"):
-            st.session_state["record_date_val"] = datetime.date.today()
-            st.rerun()
+    st.date_input(
+        "日付を選択",
+        format="YYYY/MM/DD",
+        on_change=reset_input_fields,
+        key="record_date_val"
+    )
 
     col1, col2 = st.columns(2)
 
