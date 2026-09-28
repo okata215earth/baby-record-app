@@ -470,7 +470,7 @@ else:
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# 5. カレンダー表示（7列固定グリッド）
+# 5. カレンダー表示（日曜日始まり・7列固定グリッド）
 # --------------------------------------------------
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 
@@ -492,15 +492,26 @@ else:
 
 max_monthly_milk = max(daily_milk.values()) if daily_milk and max(daily_milk.values()) > 0 else 800
 
+# ★ カレンダーを日曜日始まりに設定
+calendar.setfirstweekday(calendar.SUNDAY)
 cal = calendar.monthcalendar(year, month)
-weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+
+# 日曜日始まりの曜日リスト
+weekdays = ["日", "月", "火", "水", "木", "金", "土"]
 
 cal_html = '<div class="cal-grid-container">'
 
+# 曜日ヘッダーの生成
 for wd in weekdays:
-    color = "#FF5A79" if wd in ["土", "日"] else "#554848"
+    if wd == "日":
+        color = "#FF5A79"  # 日曜日はピンク
+    elif wd == "土":
+        color = "#4A90E2"  # 土曜日はブルー（ピンクに統一する場合は #FF5A79）
+    else:
+        color = "#554848"
     cal_html += f'<div class="cal-header-cell" style="color:{color};">{wd}</div>'
 
+# 各日付セルの生成
 for week in cal:
     for day in week:
         if day == 0:
