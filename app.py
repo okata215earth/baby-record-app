@@ -471,7 +471,14 @@ if not day_data.empty:
         marker=dict(line=dict(color="#FF8A9E", width=1))
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    #st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(
+    fig,
+    use_container_width=True,
+    config={
+        "staticPlot": True,  # 拡大・縮小・タップ操作などのインタラクションをすべて無効化（静的画像化）
+    }
+)
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
