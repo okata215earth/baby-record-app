@@ -224,15 +224,19 @@ def get_worksheet():
     return sh.sheet1
 
 
-@st.cache_data(ttl=300)
+# ★対策1: get_all_records() ではなく get_all_values() で一括取得し高速化
+@st.cache_data(ttl=600)  # キャッシュ有効期間を10分に延長し、無駄な通信を減らす
 def fetch_data_from_sheet():
     try:
         ws = get_worksheet()
+        # 2次元配列として一気に取得（パース処理がないため非常に高速）
         values = ws.get_all_values()
         
+        # データがない（ヘッダーしかない、もしくは空）場合
         if len(values) <= 1:
             return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
         
+        # pandas側で一気にDataFrame化
         df = pd.DataFrame(values[1:], columns=values[0])
         df["hour"] = pd.to_numeric(df["hour"], errors="coerce").fillna(0).astype(int)
         df["milk_ml"] = pd.to_numeric(df["milk_ml"], errors="coerce").fillna(0).astype(int)
@@ -242,15 +246,18 @@ def fetch_data_from_sheet():
         return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
 
 
+# Session State を使ってマスターデータを管理するラッパー関数
 def load_data():
     if "df_master" not in st.session_state:
         st.session_state["df_master"] = fetch_data_from_sheet()
     return st.session_state["df_master"]
 
 
+# ★対策2: 保存時はシートに追記しつつ、手元のデータにも直接追加（再ダウンロードを回避）
 def append_row(new_row):
     try:
         ws = get_worksheet()
+        # 1. スプレッドシートの末尾に追記
         ws.append_row([
             new_row["date"],
             int(new_row["hour"]),
@@ -260,8 +267,11 @@ def append_row(new_row):
             new_row["memo"]
         ])
         
+        # 2. APIから再取得せず、手元の session_state に直接行を追加（差分更新）
         new_df = pd.DataFrame([new_row])
         st.session_state["df_master"] = pd.concat([st.session_state["df_master"], new_df], ignore_index=True)
+        
+        # 3. 裏側のキャッシュは破棄しておく（次回新規アクセス時に最新を取得させるため）
         fetch_data_from_sheet.clear()
     except Exception as e:
         st.error(f"書き込みエラー: {e}")
@@ -273,10 +283,13 @@ def delete_row(date_val, time_str_val):
         records = ws.get_all_records()
         for idx, row in enumerate(records, start=2):
             if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
+                # 1. スプレッドシート上の行を削除
                 ws.delete_rows(idx)
                 
+                # 2. 手元の session_state からも該当行を削除（差分更新）
                 df = st.session_state["df_master"]
                 st.session_state["df_master"] = df[~((df["date"] == date_val) & (df["time_str"] == time_str_val))]
+                
                 fetch_data_from_sheet.clear()
                 break
     except Exception as e:
