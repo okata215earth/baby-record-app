@@ -2,7 +2,7 @@ import calendar
 import datetime
 import json
 import uuid
-import zoneinfo  # ★ 日本時間取得用に追加
+import zoneinfo
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -10,7 +10,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # --------------------------------------------------
-# 1. ページ基本設定
+# 1. ページ基本設定 & タイムゾーン設定
 # --------------------------------------------------
 st.set_page_config(
     page_title="芳怜ちゃん育児記録",
@@ -18,13 +18,21 @@ st.set_page_config(
     layout="centered"
 )
 
-# ★ 常に「日本時間（Asia/Tokyo）」での現在日付を取得
+# 常に日本時間（Asia/Tokyo）の現在日付を取得
 JST = zoneinfo.ZoneInfo("Asia/Tokyo")
-today_date = datetime.datetime.now(JST).date()
+now_jst = datetime.datetime.now(JST)
+today_date = now_jst.date()
 
 # --------------------------------------------------
-# カスタムCSS
-# ... （以下既存のコードと同じ）
+# 日付またぎ・バックグラウンド復帰対策（自動リフレッシュ）
+# --------------------------------------------------
+# セッション内に記録されている日付と今日の日付が異なる場合、キャッシュ・マスターデータを強制クリア
+if "last_loaded_date" not in st.session_state or st.session_state["last_loaded_date"] != today_date:
+    st.session_state["last_loaded_date"] = today_date
+    if "df_master" in st.session_state:
+        del st.session_state["df_master"]
+    st.cache_data.clear()
+
 # --------------------------------------------------
 # カスタムCSS
 # --------------------------------------------------
@@ -195,7 +203,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
 # --------------------------------------------------
 # 2. Googleスプレッドシート接続＆データ操作処理
 # --------------------------------------------------
@@ -217,20 +224,28 @@ def get_worksheet():
     return sh.sheet1
 
 
-@st.cache_data(ttl=60)
-def load_data():
+@st.cache_data(ttl=300)
+def fetch_data_from_sheet():
     try:
         ws = get_worksheet()
-        records = ws.get_all_records()
-        if not records:
+        values = ws.get_all_values()
+        
+        if len(values) <= 1:
             return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
-        df = pd.DataFrame(records)
+        
+        df = pd.DataFrame(values[1:], columns=values[0])
         df["hour"] = pd.to_numeric(df["hour"], errors="coerce").fillna(0).astype(int)
         df["milk_ml"] = pd.to_numeric(df["milk_ml"], errors="coerce").fillna(0).astype(int)
         return df
     except Exception as e:
         st.error(f"スプレッドシート読み込みエラー: {e}")
         return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
+
+
+def load_data():
+    if "df_master" not in st.session_state:
+        st.session_state["df_master"] = fetch_data_from_sheet()
+    return st.session_state["df_master"]
 
 
 def append_row(new_row):
@@ -244,7 +259,10 @@ def append_row(new_row):
             new_row["poop_size"],
             new_row["memo"]
         ])
-        st.cache_data.clear()
+        
+        new_df = pd.DataFrame([new_row])
+        st.session_state["df_master"] = pd.concat([st.session_state["df_master"], new_df], ignore_index=True)
+        fetch_data_from_sheet.clear()
     except Exception as e:
         st.error(f"書き込みエラー: {e}")
 
@@ -256,7 +274,10 @@ def delete_row(date_val, time_str_val):
         for idx, row in enumerate(records, start=2):
             if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
                 ws.delete_rows(idx)
-                st.cache_data.clear()
+                
+                df = st.session_state["df_master"]
+                st.session_state["df_master"] = df[~((df["date"] == date_val) & (df["time_str"] == time_str_val))]
+                fetch_data_from_sheet.clear()
                 break
     except Exception as e:
         st.error(f"削除エラー: {e}")
@@ -273,12 +294,8 @@ def reset_input_fields():
     st.session_state["input_memo"] = ""
 
 
-def on_date_change():
-    reset_input_fields()
-
-
 def save_and_reset_callback():
-    sel_date = st.session_state.get("record_date_val", datetime.date.today())
+    sel_date = st.session_state.get("selected_date_temp", today_date)
     date_str_val = sel_date.strftime("%Y-%m-%d")
     time_str = f"{int(st.session_state['input_hour']):02d}:{int(st.session_state['input_minute']):02d}"
 
@@ -309,7 +326,6 @@ if "input_memo" not in st.session_state:
 
 df = load_data()
 
-
 # --------------------------------------------------
 # 3. 入力エリア
 # --------------------------------------------------
@@ -319,14 +335,17 @@ if "save_toast_msg" in st.session_state:
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
 
-# value に直接 datetime.date.today() をセットすることでアクセスタイミングの「今日」を常にセット
+# 日付＋ランダムUUIDをキーにすることで、日付変更にも完全追従
+picker_key = f"date_picker_{today_date.strftime('%Y%m%d')}_{uuid.uuid4().hex[:6]}"
+
 selected_date = st.date_input(
     "日付を選択",
-    value=datetime.date.today(),
+    value=today_date,
     format="YYYY/MM/DD",
-    on_change=on_date_change,
-    key="record_date_val"
+    key=picker_key
 )
+
+st.session_state["selected_date_temp"] = selected_date
 
 col1, col2 = st.columns(2)
 
@@ -369,7 +388,6 @@ if st.button("🌸 記録を保存する", on_click=save_and_reset_callback):
     st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
-
 
 # --------------------------------------------------
 # 4. 選択日付のサマリー・グラフ・タイムライン
@@ -487,7 +505,6 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-
 # --------------------------------------------------
 # 5. カレンダー表示（月選択機能付き）
 # --------------------------------------------------
@@ -495,8 +512,7 @@ st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📅 ミルクカレンダー</div>', unsafe_allow_html=True)
 
 c_col1, c_col2 = st.columns(2)
-today_ref = datetime.date.today()
-current_year = today_ref.year
+current_year = today_date.year
 
 years_options = list(range(current_year - 2, current_year + 2))
 year_index = years_options.index(selected_date.year) if selected_date.year in years_options else years_options.index(current_year)
