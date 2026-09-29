@@ -1,6 +1,8 @@
 import calendar
 import datetime
 import json
+import uuid
+import zoneinfo  # ★ 日本時間取得用に追加
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -16,6 +18,13 @@ st.set_page_config(
     layout="centered"
 )
 
+# ★ 常に「日本時間（Asia/Tokyo）」での現在日付を取得
+JST = zoneinfo.ZoneInfo("Asia/Tokyo")
+today_date = datetime.datetime.now(JST).date()
+
+# --------------------------------------------------
+# カスタムCSS
+# ... （以下既存のコードと同じ）
 # --------------------------------------------------
 # カスタムCSS
 # --------------------------------------------------
