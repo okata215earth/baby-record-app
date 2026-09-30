@@ -1,7 +1,6 @@
 import calendar
 import datetime
 import json
-import uuid
 import zoneinfo
 import pandas as pd
 import plotly.express as px
@@ -26,7 +25,6 @@ today_date = now_jst.date()
 # --------------------------------------------------
 # 日付またぎ・バックグラウンド復帰対策（自動リフレッシュ）
 # --------------------------------------------------
-# セッション内に記録されている日付と今日の日付が異なる場合、キャッシュ・マスターデータを強制クリア
 if "last_loaded_date" not in st.session_state or st.session_state["last_loaded_date"] != today_date:
     st.session_state["last_loaded_date"] = today_date
     if "df_master" in st.session_state:
@@ -224,19 +222,15 @@ def get_worksheet():
     return sh.sheet1
 
 
-# ★対策1: get_all_records() ではなく get_all_values() で一括取得し高速化
-@st.cache_data(ttl=600)  # キャッシュ有効期間を10分に延長し、無駄な通信を減らす
+@st.cache_data(ttl=300)
 def fetch_data_from_sheet():
     try:
         ws = get_worksheet()
-        # 2次元配列として一気に取得（パース処理がないため非常に高速）
         values = ws.get_all_values()
         
-        # データがない（ヘッダーしかない、もしくは空）場合
         if len(values) <= 1:
             return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
         
-        # pandas側で一気にDataFrame化
         df = pd.DataFrame(values[1:], columns=values[0])
         df["hour"] = pd.to_numeric(df["hour"], errors="coerce").fillna(0).astype(int)
         df["milk_ml"] = pd.to_numeric(df["milk_ml"], errors="coerce").fillna(0).astype(int)
@@ -246,18 +240,15 @@ def fetch_data_from_sheet():
         return pd.DataFrame(columns=["date", "hour", "time_str", "milk_ml", "poop_size", "memo"])
 
 
-# Session State を使ってマスターデータを管理するラッパー関数
 def load_data():
     if "df_master" not in st.session_state:
         st.session_state["df_master"] = fetch_data_from_sheet()
     return st.session_state["df_master"]
 
 
-# ★対策2: 保存時はシートに追記しつつ、手元のデータにも直接追加（再ダウンロードを回避）
 def append_row(new_row):
     try:
         ws = get_worksheet()
-        # 1. スプレッドシートの末尾に追記
         ws.append_row([
             new_row["date"],
             int(new_row["hour"]),
@@ -267,11 +258,9 @@ def append_row(new_row):
             new_row["memo"]
         ])
         
-        # 2. APIから再取得せず、手元の session_state に直接行を追加（差分更新）
         new_df = pd.DataFrame([new_row])
+        # ★タイポ箇所を修正 (ignore_ignore -> ignore_index)
         st.session_state["df_master"] = pd.concat([st.session_state["df_master"], new_df], ignore_index=True)
-        
-        # 3. 裏側のキャッシュは破棄しておく（次回新規アクセス時に最新を取得させるため）
         fetch_data_from_sheet.clear()
     except Exception as e:
         st.error(f"書き込みエラー: {e}")
@@ -283,13 +272,10 @@ def delete_row(date_val, time_str_val):
         records = ws.get_all_records()
         for idx, row in enumerate(records, start=2):
             if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
-                # 1. スプレッドシート上の行を削除
                 ws.delete_rows(idx)
                 
-                # 2. 手元の session_state からも該当行を削除（差分更新）
                 df = st.session_state["df_master"]
                 st.session_state["df_master"] = df[~((df["date"] == date_val) & (df["time_str"] == time_str_val))]
-                
                 fetch_data_from_sheet.clear()
                 break
     except Exception as e:
@@ -308,7 +294,7 @@ def reset_input_fields():
 
 
 def save_and_reset_callback():
-    sel_date = st.session_state.get("selected_date_temp", today_date)
+    sel_date = st.session_state.get("record_date_picker", today_date)
     date_str_val = sel_date.strftime("%Y-%m-%d")
     time_str = f"{int(st.session_state['input_hour']):02d}:{int(st.session_state['input_minute']):02d}"
 
@@ -323,7 +309,7 @@ def save_and_reset_callback():
 
     append_row(new_data)
     reset_input_fields()
-    st.session_state["save_toast_msg"] = f"{time_str} の記録を保存しました 💕"
+    st.session_state["save_toast_msg"] = f"{date_str_val} {time_str} の記録を保存しました 💕"
 
 
 if "input_hour" not in st.session_state:
@@ -346,19 +332,14 @@ if "save_toast_msg" in st.session_state:
     st.toast(st.session_state.pop("save_toast_msg"))
 
 st.markdown('<div class="luna-card">', unsafe_allow_html=True)
-st.markdown('<div class="luna-header">📝 きょうの記録をつける</div>', unsafe_allow_html=True)
-
-# 日付＋ランダムUUIDをキーにすることで、日付変更にも完全追従
-picker_key = f"date_picker_{today_date.strftime('%Y%m%d')}_{uuid.uuid4().hex[:6]}"
+st.markdown('<div class="luna-header">📝 記録をつける</div>', unsafe_allow_html=True)
 
 selected_date = st.date_input(
     "日付を選択",
     value=today_date,
     format="YYYY/MM/DD",
-    key=picker_key
+    key="record_date_picker"
 )
-
-st.session_state["selected_date_temp"] = selected_date
 
 col1, col2 = st.columns(2)
 
@@ -471,14 +452,11 @@ if not day_data.empty:
         marker=dict(line=dict(color="#FF8A9E", width=1))
     )
 
-    #st.plotly_chart(fig, use_container_width=True)
     st.plotly_chart(
-    fig,
-    use_container_width=True,
-    config={
-        "staticPlot": True,  # 拡大・縮小・タップ操作などのインタラクションをすべて無効化（静的画像化）
-    }
-)
+        fig,
+        use_container_width=True,
+        config={"staticPlot": True}
+    )
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="luna-card">', unsafe_allow_html=True)
@@ -509,7 +487,7 @@ if not day_data.empty:
 
         with col_btn:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-            if st.button("🗑️", key=f"del_{idx}"):
+            if st.button("🗑️️", key=f"del_{idx}"):
                 delete_row(row["date"], row["time_str"])
                 st.toast(f"{row['time_str']} の記録を削除しました")
                 st.rerun()
