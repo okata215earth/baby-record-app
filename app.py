@@ -259,24 +259,33 @@ def append_row(new_row):
         ])
         
         new_df = pd.DataFrame([new_row])
-        # ★タイポ箇所を修正 (ignore_ignore -> ignore_index)
         st.session_state["df_master"] = pd.concat([st.session_state["df_master"], new_df], ignore_index=True)
         fetch_data_from_sheet.clear()
     except Exception as e:
         st.error(f"書き込みエラー: {e}")
 
 
-def delete_row(date_val, time_str_val):
+def delete_single_row(target_row_dict):
+    """
+    内容（日付、時間、ミルク量、うんち量、メモ）がすべて完全一致する1行だけをスプレッドシートおよびメモリから削除
+    """
     try:
         ws = get_worksheet()
         records = ws.get_all_records()
-        for idx, row in enumerate(records, start=2):
-            if str(row.get("date")) == str(date_val) and str(row.get("time_str")) == str(time_str_val):
+        
+        for idx, row in enumerate(records, start=2): # 1行目はヘッダー
+            if (str(row.get("date")) == str(target_row_dict["date"]) and
+                str(row.get("time_str")) == str(target_row_dict["time_str"]) and
+                str(row.get("milk_ml")) == str(target_row_dict["milk_ml"]) and
+                str(row.get("poop_size")) == str(target_row_dict["poop_size"]) and
+                str(row.get("memo")) == str(target_row_dict["memo"])):
+                
+                # スプレッドシートから対象の1行のみを削除
                 ws.delete_rows(idx)
                 
-                df = st.session_state["df_master"]
-                st.session_state["df_master"] = df[~((df["date"] == date_val) & (df["time_str"] == time_str_val))]
+                # キャッシュクリア＆最新データ再取得
                 fetch_data_from_sheet.clear()
+                st.session_state["df_master"] = fetch_data_from_sheet()
                 break
     except Exception as e:
         st.error(f"削除エラー: {e}")
@@ -487,9 +496,17 @@ if not day_data.empty:
 
         with col_btn:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-            if st.button("🗑️️", key=f"del_{idx}"):
-                delete_row(row["date"], row["time_str"])
-                st.toast(f"{row['time_str']} の記録を削除しました")
+            # 各行一意のボタンキーを生成（idxを使用）
+            if st.button("🗑", key=f"del_{idx}"):
+                target_dict = {
+                    "date": row["date"],
+                    "time_str": row["time_str"],
+                    "milk_ml": row["milk_ml"],
+                    "poop_size": row["poop_size"],
+                    "memo": row["memo"]
+                }
+                delete_single_row(target_dict)
+                st.toast(f"{row['time_str']} の対象レコードを削除しました")
                 st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
