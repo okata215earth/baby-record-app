@@ -67,6 +67,14 @@ st.markdown("""
         box-shadow: 0 4px 14px rgba(255, 138, 158, 0.08);
         border: 1px solid #FFEBEF;
     }
+    .luna-card-highlight {
+        background: linear-gradient(135deg, #FFF0F3 0%, #FFE1E8 100%);
+        border-radius: 20px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+        border: 1px solid #FFCCD5;
+        box-shadow: 0 4px 14px rgba(255, 90, 121, 0.12);
+    }
     .luna-card-mint {
         background-color: #F2FAF7;
         border-radius: 20px;
@@ -266,24 +274,18 @@ def append_row(new_row):
 
 
 def delete_single_row(target_row_dict):
-    """
-    内容（日付、時間、ミルク量、うんち量、メモ）がすべて完全一致する1行だけをスプレッドシートおよびメモリから削除
-    """
     try:
         ws = get_worksheet()
         records = ws.get_all_records()
         
-        for idx, row in enumerate(records, start=2): # 1行目はヘッダー
+        for idx, row in enumerate(records, start=2):
             if (str(row.get("date")) == str(target_row_dict["date"]) and
                 str(row.get("time_str")) == str(target_row_dict["time_str"]) and
                 str(row.get("milk_ml")) == str(target_row_dict["milk_ml"]) and
                 str(row.get("poop_size")) == str(target_row_dict["poop_size"]) and
                 str(row.get("memo")) == str(target_row_dict["memo"])):
                 
-                # スプレッドシートから対象の1行のみを削除
                 ws.delete_rows(idx)
-                
-                # キャッシュクリア＆最新データ再取得
                 fetch_data_from_sheet.clear()
                 st.session_state["df_master"] = fetch_data_from_sheet()
                 break
@@ -333,6 +335,65 @@ if "input_memo" not in st.session_state:
     st.session_state["input_memo"] = ""
 
 df = load_data()
+
+# --------------------------------------------------
+# ★ 最終授乳の相対日付表示エリア（今日、1日前など）
+# --------------------------------------------------
+milk_df = df[df["milk_ml"] > 0].copy()
+
+if not milk_df.empty:
+    milk_df["dt"] = pd.to_datetime(milk_df["date"] + " " + milk_df["time_str"], errors="coerce")
+    milk_df = milk_df.dropna(subset=["dt"]).sort_values("dt", ascending=False)
+    
+    if not milk_df.empty:
+        last_record = milk_df.iloc[0]
+        last_dt = last_record["dt"]
+        last_time_str = last_dt.strftime("%H:%M")
+        last_amount = last_record["milk_ml"]
+
+        # 本日（日付単位）との差分を計算
+        last_date = last_dt.date()
+        days_diff = (today_date - last_date).days
+
+        if days_diff == 0:
+            rel_date_str = "今日"
+        elif days_diff == 1:
+            rel_date_str = "1日前 (昨日)"
+        else:
+            rel_date_str = f"{days_diff}日前"
+
+        # 経過時間（時間・分）の計算
+        diff = now_jst.replace(tzinfo=None) - last_dt
+        total_minutes = int(diff.total_seconds() // 60)
+        
+        if total_minutes >= 0:
+            hours = total_minutes // 60
+            mins = total_minutes % 60
+            if hours > 0:
+                elapsed_str = f"前回の授乳から <b>{hours}時間{mins}分</b> 経過"
+            else:
+                elapsed_str = f"前回の授乳から <b>{mins}分</b> 経過"
+        else:
+            elapsed_str = "最新の授乳記録"
+
+        st.markdown(f"""
+        <div class="luna-card-highlight">
+            <div class="luna-header" style="margin-bottom: 6px;">🍼 最終授乳</div>
+            <div style="font-size: 1.25rem; font-weight: bold; color: #FF5A79;">
+                {rel_date_str} {last_time_str} <span style="font-size: 1.0rem; color: #554848;">({last_amount} ml)</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #8C7B7B; margin-top: 4px;">
+                ⏱️ {elapsed_str}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <div class="luna-card-highlight">
+        <div class="luna-header" style="margin-bottom: 4px;">🍼 最終授乳</div>
+        <div style="font-size: 0.9rem; color: #8C7B7B;">まだ授乳の記録がありません</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --------------------------------------------------
 # 3. 入力エリア
@@ -496,7 +557,6 @@ if not day_data.empty:
 
         with col_btn:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-            # 各行一意のボタンキーを生成（idxを使用）
             if st.button("🗑", key=f"del_{idx}"):
                 target_dict = {
                     "date": row["date"],
