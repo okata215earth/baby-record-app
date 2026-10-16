@@ -731,9 +731,6 @@ if not df.empty:
                 label_str = f"★0ヶ月" if i == 0 else f"★{i}ヶ月"
                 tick_text.append(label_str)
 
-        # 現在の日数または最大日数に基づいてX軸の最大範囲を決定
-        max_day = max(daily_summary_df["days_after_birth"].max(), tick_vals[-1] if tick_vals else 0)
-
         fig_trend.update_layout(
             xaxis=dict(
                 title="生後日数 (日)",
@@ -741,14 +738,12 @@ if not df.empty:
                 tickmode="array",
                 tickvals=tick_vals,
                 ticktext=tick_text,
-                range=[0, max_day + 1],  # 始点を0（生後0日目 / 7月24日）に固定
-                fixedrange=True,         # 横方向のズーム等を固定
+                range=[0, 60],   # 初期表示を約2ヶ月分（60日）に設定
             ),
             yaxis=dict(
                 title=dict(text="ミルク合計 (ml)", font=dict(color="#FF8A9E")),
                 tickfont=dict(color="#FF8A9E", size=10),
                 side="left",
-                fixedrange=True,         # 縦方向のズーム等を固定
             ),
             yaxis2=dict(
                 title=dict(text="授乳回数 (回)", font=dict(color="#FF5A79")),
@@ -757,8 +752,7 @@ if not df.empty:
                 side="right",
                 showgrid=False,
                 range=[0, 10],       # 最大値10
-                dtick=1,             # 1刻み
-                fixedrange=True,     # 2軸目のズーム等を固定
+                dtick=1              # 1刻み
             ),
             legend=dict(
                 orientation="h",
@@ -773,11 +767,10 @@ if not df.empty:
             paper_bgcolor="rgba(0,0,0,0)",
         )
 
-        # 非編集（静的固定表示）設定
+        # インタラクティブ表示（スクロールやパン・ズームが可能）
         st.plotly_chart(
             fig_trend,
-            use_container_width=True,
-            config={"staticPlot": True}
+            use_container_width=True
         )
     else:
         st.info("7月24日以降の授乳データがまだありません。")
