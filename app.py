@@ -735,8 +735,7 @@ if not df.empty:
                     arrowsize=0.3,
                     arrowwidth=1,
                     arrowcolor="#E59866",
-                    font=dict(size=12, color="#F39C12"),
-                    tooltip=f"生後{d_after}日 ({label_text})"
+                    font=dict(size=12, color="#F39C12")
                 )
 
         fig_trend.update_layout(
