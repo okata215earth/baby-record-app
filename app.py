@@ -716,15 +716,39 @@ if not df.empty:
             yaxis="y2"
         ))
 
+        # 毎月24日（生後0ヶ月、1ヶ月、2ヶ月…）の生後日数を計算し、X軸のメモリ（tickvals）とラベル（ticktext）を作成
+        tick_vals = []
+        tick_text = []
+
+        for i in range(12):
+            y = birth_date.year + (birth_date.month - 1 + i) // 12
+            m = (birth_date.month - 1 + i) % 12 + 1
+            milestone_date = datetime.date(y, m, 24)
+            d_after = (milestone_date - birth_date).days
+
+            if d_after >= 0:
+                tick_vals.append(d_after)
+                label_str = f"★0ヶ月" if i == 0 else f"★{i}ヶ月"
+                tick_text.append(label_str)
+
+        # 現在の日数または最大日数に基づいてX軸の最大範囲を決定
+        max_day = max(daily_summary_df["days_after_birth"].max(), tick_vals[-1] if tick_vals else 0)
+
         fig_trend.update_layout(
             xaxis=dict(
                 title="生後日数 (日)",
                 tickfont=dict(size=10),
+                tickmode="array",
+                tickvals=tick_vals,
+                ticktext=tick_text,
+                range=[0, max_day + 1],  # 始点を0（生後0日目 / 7月24日）に固定
+                fixedrange=True,         # 横方向のズーム等を固定
             ),
             yaxis=dict(
                 title=dict(text="ミルク合計 (ml)", font=dict(color="#FF8A9E")),
                 tickfont=dict(color="#FF8A9E", size=10),
                 side="left",
+                fixedrange=True,         # 縦方向のズーム等を固定
             ),
             yaxis2=dict(
                 title=dict(text="授乳回数 (回)", font=dict(color="#FF5A79")),
@@ -733,7 +757,8 @@ if not df.empty:
                 side="right",
                 showgrid=False,
                 range=[0, 10],       # 最大値10
-                dtick=1              # 1刻み
+                dtick=1,             # 1刻み
+                fixedrange=True,     # 2軸目のズーム等を固定
             ),
             legend=dict(
                 orientation="h",
@@ -742,13 +767,18 @@ if not df.empty:
                 xanchor="right",
                 x=1
             ),
-            height=350,
-            margin=dict(l=20, r=20, t=30, b=10),
+            height=380,
+            margin=dict(l=20, r=20, t=40, b=10),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
         )
 
-        st.plotly_chart(fig_trend, use_container_width=True)
+        # 非編集（静的固定表示）設定
+        st.plotly_chart(
+            fig_trend,
+            use_container_width=True,
+            config={"staticPlot": True}
+        )
     else:
         st.info("7月24日以降の授乳データがまだありません。")
 else:
