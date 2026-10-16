@@ -725,7 +725,6 @@ if not df.empty:
                 title=dict(text="ミルク合計 (ml)", font=dict(color="#FF8A9E")),
                 tickfont=dict(color="#FF8A9E", size=10),
                 side="left",
-                showgrid=True
             ),
             yaxis2=dict(
                 title=dict(text="授乳回数 (回)", font=dict(color="#FF5A79")),
@@ -733,7 +732,8 @@ if not df.empty:
                 overlaying="y",
                 side="right",
                 showgrid=False,
-                range=[0, 15]
+                range=[0, 10],       # 最大値10
+                dtick=1              # 1刻み
             ),
             legend=dict(
                 orientation="h",
