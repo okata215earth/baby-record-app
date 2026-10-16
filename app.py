@@ -3,6 +3,7 @@ import datetime
 import json
 import zoneinfo
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import gspread
@@ -679,51 +680,23 @@ st.markdown('<div class="luna-card">', unsafe_allow_html=True)
 st.markdown('<div class="luna-header">📈 生後日数別の授乳推移（量 ＆ 回数）</div>', unsafe_allow_html=True)
 
 if not df.empty:
-    # 全データを日付ごとに集計（ミルク合計量 ＆ 授乳回数）
     all_df = df.copy()
     all_df["date_dt"] = pd.to_datetime(all_df["date"], errors="coerce")
     all_df = all_df.dropna(subset=["date_dt"])
 
-    # 誕生日の定義 (7月24日)
     birth_date = datetime.date(2026, 7, 24)
 
-    # 日ごとの集計
     daily_summary_df = all_df.groupby("date_dt").agg(
         total_milk=("milk_ml", "sum"),
         feed_count=("milk_ml", lambda x: (x > 0).sum())
     ).reset_index()
 
-    # 生後日数（日齢）の計算
     daily_summary_df["days_after_birth"] = daily_summary_df["date_dt"].apply(lambda x: (x.date() - birth_date).days)
-    
-    # 0日目（誕生日）以降のデータに絞る
     daily_summary_df = daily_summary_df[daily_summary_df["days_after_birth"] >= 0].sort_values("days_after_birth")
 
     if not daily_summary_df.empty:
-        # 月齢ラベル（毎月24日を〇ヶ月とする）を生成する関数
-        def get_milestone_label(d_dt):
-            y = d_dt.year
-            m = d_dt.month
-            d = d_dt.day
-            
-            # 24日を基準に何ヶ月目かを計算
-            months = (y - birth_date.year) * 12 + (m - birth_date.month)
-            if d < 24:
-                months -= 1
-            
-            if d == 24:
-                if months == 0:
-                    return "生後0日 (誕生日)"
-                else:
-                    return f"{months}ヶ月"
-            return ""
-
-        daily_summary_df["milestone"] = daily_summary_df["date_dt"].apply(get_milestone_label)
-
-        # Plotlyを使ったデュアル軸（棒：ミルク量、折れ線：回数）の作成
         fig_trend = go.Figure()
 
-        # 1. ミルク量（棒グラフ：左軸）
         fig_trend.add_trace(go.Bar(
             x=daily_summary_df["days_after_birth"],
             y=daily_summary_df["total_milk"],
@@ -733,7 +706,6 @@ if not df.empty:
             yaxis="y1"
         ))
 
-        # 2. 授乳回数（折れ線グラフ：右軸）
         fig_trend.add_trace(go.Scatter(
             x=daily_summary_df["days_after_birth"],
             y=daily_summary_df["feed_count"],
@@ -744,7 +716,6 @@ if not df.empty:
             yaxis="y2"
         ))
 
-        # グラフレイアウト調整
         fig_trend.update_layout(
             xaxis=dict(
                 title="生後日数 (日)",
