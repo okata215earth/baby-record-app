@@ -731,6 +731,11 @@ if not df.empty:
                 label_str = f"★0ヶ月" if i == 0 else f"★{i}ヶ月"
                 tick_text.append(label_str)
 
+        # 本日までの生後日数と、直近2ヶ月分（約60日前）の範囲計算
+        today_days = (today_date - birth_date).days
+        range_start = max(0, today_days - 60)
+        range_end = max(today_days + 5, 60)
+
         fig_trend.update_layout(
             xaxis=dict(
                 title="生後日数 (日)",
@@ -738,7 +743,25 @@ if not df.empty:
                 tickmode="array",
                 tickvals=tick_vals,
                 ticktext=tick_text,
-                range=[0, 60],   # 初期表示を約2ヶ月分（60日）に設定
+                range=[range_start, range_end],  # 初期表示：直近2ヶ月分
+                # グラフ上部に「過去へ遡る」「全体表示」などのクイック操作ボタンを設置
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=30, label="1ヶ月前", step="day", stepmode="backward"),
+                        dict(count=60, label="直近2ヶ月", step="day", stepmode="backward"),
+                        dict(count=90, label="3ヶ月", step="day", stepmode="backward"),
+                        dict(step="all", label="全期間")
+                    ]),
+                    x=0,
+                    y=1.15,
+                    xanchor="left",
+                    yanchor="top",
+                    font=dict(size=9, color="#FF5A79"),
+                    bgcolor="rgba(255, 240, 243, 0.9)",
+                    activecolor="#FF8A9E",
+                    bordercolor="#FFD2DC",
+                    borderwidth=1
+                )
             ),
             yaxis=dict(
                 title=dict(text="ミルク合計 (ml)", font=dict(color="#FF8A9E")),
@@ -746,7 +769,7 @@ if not df.empty:
                 side="left",
             ),
             yaxis2=dict(
-                title=dict(text="授乳回数 (回)", font=dict(color="#FF5A79")),
+                title=dict(text="授乳回数 (回)", font=dict(color="#FF8A9E")),
                 tickfont=dict(color="#FF5A79", size=10),
                 overlaying="y",
                 side="right",
@@ -757,17 +780,17 @@ if not df.empty:
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
-                y=1.02,
+                y=1.12,
                 xanchor="right",
                 x=1
             ),
-            height=380,
-            margin=dict(l=20, r=20, t=40, b=10),
+            height=410,
+            margin=dict(l=20, r=20, t=50, b=10),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
         )
 
-        # インタラクティブ表示（スクロールやパン・ズームが可能）
+        # グラフを表示（スクロールやボタン操作が可能）
         st.plotly_chart(
             fig_trend,
             use_container_width=True
