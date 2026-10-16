@@ -744,56 +744,45 @@ if not df.empty:
                 tickvals=tick_vals,
                 ticktext=tick_text,
                 range=[range_start, range_end],  # 初期表示：直近2ヶ月分
-                # グラフ上部に「過去へ遡る」「全体表示」などのクイック操作ボタンを設置
-                rangeselector=dict(
-                    buttons=list([
-                        dict(count=30, label="1ヶ月前", step="day", stepmode="backward"),
-                        dict(count=60, label="直近2ヶ月", step="day", stepmode="backward"),
-                        dict(count=90, label="3ヶ月", step="day", stepmode="backward"),
-                        dict(step="all", label="全期間")
-                    ]),
-                    x=0,
-                    y=1.15,
-                    xanchor="left",
-                    yanchor="top",
-                    font=dict(size=9, color="#FF5A79"),
-                    bgcolor="rgba(255, 240, 243, 0.9)",
-                    activecolor="#FF8A9E",
-                    bordercolor="#FFD2DC",
-                    borderwidth=1
-                )
+                fixedrange=False,                # 横方向のスクロール・パン移動を許可
             ),
             yaxis=dict(
                 title=dict(text="ミルク合計 (ml)", font=dict(color="#FF8A9E")),
                 tickfont=dict(color="#FF8A9E", size=10),
                 side="left",
+                fixedrange=True,                 # 縦方向の勝手な拡大縮小を固定
             ),
             yaxis2=dict(
-                title=dict(text="授乳回数 (回)", font=dict(color="#FF8A9E")),
+                title=dict(text="授乳回数 (回)", font=dict(color="#FF5A79")),
                 tickfont=dict(color="#FF5A79", size=10),
                 overlaying="y",
                 side="right",
                 showgrid=False,
                 range=[0, 10],       # 最大値10
-                dtick=1              # 1刻み
+                dtick=1,             # 1刻み
+                fixedrange=True,     # 2軸目の縦固定
             ),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
-                y=1.12,
+                y=1.02,
                 xanchor="right",
                 x=1
             ),
-            height=410,
-            margin=dict(l=20, r=20, t=50, b=10),
+            height=380,
+            margin=dict(l=20, r=20, t=30, b=10),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
         )
 
-        # グラフを表示（スクロールやボタン操作が可能）
+        # グラフを表示（横方向のドラッグ移動のみ許可し、拡大縮小ツールバー等を非表示・固定）
         st.plotly_chart(
             fig_trend,
-            use_container_width=True
+            use_container_width=True,
+            config={
+                "scrollZoom": False,
+                "displayModeBar": False
+            }
         )
     else:
         st.info("7月24日以降の授乳データがまだありません。")
