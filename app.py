@@ -716,6 +716,32 @@ if not df.empty:
             yaxis="y2"
         ))
 
+        # 毎月24日（生後0ヶ月、1ヶ月、2ヶ月…）の節目に星マークを追加
+        for i in range(12):
+            # iヶ月後の24日を計算
+            y = birth_date.year + (birth_date.month - 1 + i) // 12
+            m = (birth_date.month - 1 + i) % 12 + 1
+            milestone_date = datetime.date(y, m, 24)
+            d_after = (milestone_date - birth_date).days
+
+            if d_after >= 0:
+                label_text = "誕生日 (0ヶ月)" if i == 0 else f"{i}ヶ月"
+                fig_trend.add_annotation(
+                    x=d_after,
+                    y=10,  # 授乳回数軸の一番上に配置
+                    yref="y2",
+                    text="★",
+                    showarrow=True,
+                    arrowhead=0,
+                    arrowscale=0.5,
+                    arrowsize=0.5,
+                    arrowwidth=1,
+                    arrowcolor="#E59866",
+                    font=dict(size=12, color="#F39C12"),
+                    textangle=0,
+                    hovertext=f"生後{d_after}日 ({label_text})"
+                )
+
         fig_trend.update_layout(
             xaxis=dict(
                 title="生後日数 (日)",
@@ -742,8 +768,8 @@ if not df.empty:
                 xanchor="right",
                 x=1
             ),
-            height=350,
-            margin=dict(l=20, r=20, t=30, b=10),
+            height=380,
+            margin=dict(l=20, r=20, t=40, b=10),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
         )
